@@ -40,13 +40,21 @@ export interface Highlight {
   explanation: string;
 }
 
-export function PDFReader() {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+interface PDFReaderProps {
+  documents?: PDFDocument[];
+  persona?: string;
+  jobToBeDone?: string;
+  onBack?: () => void;
+}
+
+export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReaderProps) {
+  const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
+  const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [currentDocument, setCurrentDocument] = useState<PDFDocument | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [zoom, setZoom] = useState(1.0);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
-  const [activePanel, setActivePanel] = useState<'outline' | 'insights' | 'podcast' | 'accessibility' | 'highlights' | null>('outline');
+  const [activeRightPanel, setActiveRightPanel] = useState<'insights' | 'podcast' | 'accessibility' | 'simplifier' | null>('insights');
 
   // Mock document for demo
   const mockDocument: PDFDocument = {
@@ -104,35 +112,30 @@ export function PDFReader() {
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
-      <header className="flex items-center justify-between p-4 border-b border-border-subtle bg-surface-elevated">
+      <header className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-surface-elevated/90 backdrop-blur-sm">
         <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2"
-            aria-label="Toggle sidebar"
-          >
-            <Menu className="h-4 w-4" />
-          </Button>
-          
-          <div className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-brand-primary" />
-            <h1 className="text-lg font-semibold text-text-primary">PDF Reader</h1>
-          </div>
-          
-          <div className="relative">
-            <input
-              type="file"
-              accept=".pdf"
-              onChange={handleFileUpload}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              aria-label="Upload PDF file"
-            />
-            <Button variant="outline" size="sm" className="gap-2">
-              <Upload className="h-4 w-4" />
-              Upload PDF
+          {onBack && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onBack}
+              className="gap-2"
+            >
+              ←
+              Back
             </Button>
+          )}
+          
+          <div className="flex items-center gap-3">
+            <BookOpen className="h-6 w-6 text-brand-primary" />
+            <div>
+              <h1 className="text-xl font-bold text-text-primary">DocuSense</h1>
+              {persona && (
+                <p className="text-xs text-text-secondary">
+                  Reading as: {persona} • Goal: {jobToBeDone}
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
@@ -140,21 +143,23 @@ export function PDFReader() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setActivePanel(activePanel === 'accessibility' ? null : 'accessibility')}
-            className="p-2"
-            aria-label="Accessibility settings"
+            onClick={() => setLeftSidebarOpen(!leftSidebarOpen)}
+            className="gap-2"
+            aria-label="Toggle outline"
           >
-            <Settings className="h-4 w-4" />
+            <Menu className="h-4 w-4" />
+            Outline
           </Button>
           
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setActivePanel(activePanel === 'highlights' ? null : 'highlights')}
-            className="p-2"
-            aria-label="Theme settings"
+            onClick={() => setRightPanelOpen(!rightPanelOpen)}
+            className="gap-2"
+            aria-label="Toggle utilities"
           >
-            <Palette className="h-4 w-4" />
+            <Settings className="h-4 w-4" />
+            Tools
           </Button>
           
           <ThemeToggle />
@@ -162,50 +167,16 @@ export function PDFReader() {
       </header>
 
       <div className="flex flex-1 min-h-0">
-        {/* Sidebar */}
-        {sidebarOpen && (
-          <aside className="w-80 bg-outline-background border-r border-border-subtle flex flex-col animate-fade-in">
-            <div className="p-4 border-b border-border-subtle">
-              <div className="flex gap-1 overflow-x-auto">
-                {[
-                  { key: 'outline', label: 'Outline', icon: Menu },
-                  { key: 'insights', label: 'Insights', icon: BookOpen },
-                  { key: 'podcast', label: 'Podcast', icon: Settings }
-                ].map(({ key, label, icon: Icon }) => (
-                  <Button
-                    key={key}
-                    variant={activePanel === key ? "default" : "ghost"}
-                    size="sm"
-                    onClick={() => setActivePanel(activePanel === key ? null : key as any)}
-                    className="gap-2 whitespace-nowrap"
-                  >
-                    <Icon className="h-4 w-4" />
-                    {label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-hidden">
-              {activePanel === 'outline' && currentDocument && (
-                <DocumentOutline
-                  outline={currentDocument.outline}
-                  currentPage={currentPage}
-                  onItemClick={handleOutlineClick}
-                />
-              )}
-              
-              {activePanel === 'insights' && (
-                <InsightsPanel documentId={currentDocument?.id} />
-              )}
-              
-              {activePanel === 'podcast' && (
-                <PodcastPanel 
-                  documentId={currentDocument?.id}
-                  currentPage={currentPage}
-                />
-              )}
-            </div>
+        {/* Left Sidebar - Outline & Navigation */}
+        {leftSidebarOpen && (
+          <aside className="w-80 bg-surface-elevated border-r border-border-subtle flex flex-col animate-fade-in">
+            {currentDocument && (
+              <DocumentOutline
+                outline={currentDocument.outline}
+                currentPage={currentPage}
+                onItemClick={handleOutlineClick}
+              />
+            )}
           </aside>
         )}
 
@@ -245,16 +216,58 @@ export function PDFReader() {
           />
         </main>
 
-        {/* Right Panel */}
-        {(activePanel === 'accessibility' || activePanel === 'highlights') && (
-          <aside className="w-80 bg-surface-elevated border-l border-border-subtle animate-fade-in">
-            {activePanel === 'accessibility' && <AccessibilityPanel />}
-            {activePanel === 'highlights' && (
-              <HighlightPanel 
-                highlights={highlights}
-                onHighlightClick={(highlight) => setCurrentPage(highlight.page)}
-              />
-            )}
+        {/* Right Panel - Interactive Utilities */}
+        {rightPanelOpen && (
+          <aside className="w-96 bg-surface-elevated border-l border-border-subtle flex flex-col animate-fade-in">
+            <div className="p-4 border-b border-border-subtle">
+              <div className="flex gap-1 overflow-x-auto">
+                {[
+                  { key: 'insights', label: 'Insights', icon: BookOpen },
+                  { key: 'podcast', label: 'Podcast', icon: Settings },
+                  { key: 'accessibility', label: 'Access', icon: Palette },
+                  { key: 'simplifier', label: 'Simplify', icon: Upload }
+                ].map(({ key, label, icon: Icon }) => (
+                  <Button
+                    key={key}
+                    variant={activeRightPanel === key ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setActiveRightPanel(activeRightPanel === key ? null : key as any)}
+                    className="gap-2 whitespace-nowrap"
+                  >
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-hidden">
+              {activeRightPanel === 'insights' && (
+                <InsightsPanel 
+                  documentId={currentDocument?.id}
+                  persona={persona}
+                  jobToBeDone={jobToBeDone}
+                />
+              )}
+              
+              {activeRightPanel === 'podcast' && (
+                <PodcastPanel 
+                  documentId={currentDocument?.id}
+                  currentPage={currentPage}
+                />
+              )}
+              
+              {activeRightPanel === 'accessibility' && <AccessibilityPanel />}
+              
+              {activeRightPanel === 'simplifier' && (
+                <div className="p-4">
+                  <h3 className="font-semibold text-text-primary mb-4">Text Simplifier</h3>
+                  <p className="text-sm text-text-secondary">
+                    Hover over complex words to see definitions and simpler alternatives.
+                  </p>
+                </div>
+              )}
+            </div>
           </aside>
         )}
       </div>

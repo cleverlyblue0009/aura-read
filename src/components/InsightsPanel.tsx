@@ -27,11 +27,13 @@ interface Insight {
 
 interface InsightsPanelProps {
   documentId?: string;
+  persona?: string;
+  jobToBeDone?: string;
 }
 
-export function InsightsPanel({ documentId }: InsightsPanelProps) {
-  const [persona, setPersona] = useState('');
-  const [jobToBeDone, setJobToBeDone] = useState('');
+export function InsightsPanel({ documentId, persona: initialPersona, jobToBeDone: initialJobToBeDone }: InsightsPanelProps) {
+  const [persona, setPersona] = useState(initialPersona || '');
+  const [jobToBeDone, setJobToBeDone] = useState(initialJobToBeDone || '');
   const [insights, setInsights] = useState<Insight[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
 
