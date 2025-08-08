@@ -31,9 +31,9 @@ interface InsightsPanelProps {
   jobToBeDone?: string;
 }
 
-export function InsightsPanel({ documentId, persona: initialPersona, jobToBeDone: initialJobToBeDone }: InsightsPanelProps) {
-  const [persona, setPersona] = useState(initialPersona || '');
-  const [jobToBeDone, setJobToBeDone] = useState(initialJobToBeDone || '');
+export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: propJobToBeDone }: InsightsPanelProps) {
+  const [persona, setPersona] = useState(propPersona || '');
+  const [jobToBeDone, setJobToBeDone] = useState(propJobToBeDone || '');
   const [insights, setInsights] = useState<Insight[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
 
