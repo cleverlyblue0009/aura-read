@@ -115,7 +115,7 @@ export function LandingPage({ onStart }: LandingPageProps) {
               {/* File Upload */}
               <div
                 className={`
-                  border-2 border-dashed rounded-lg p-8 text-center transition-all duration-300
+                  border-2 border-dashed rounded-lg p-8 text-center transition-all duration-300 relative
                   ${dragActive 
                     ? 'border-brand-primary bg-surface-hover' 
                     : 'border-border-subtle hover:border-brand-primary/50'
@@ -133,20 +133,22 @@ export function LandingPage({ onStart }: LandingPageProps) {
                   accept=".pdf"
                   multiple
                   onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                 />
-                <Upload className="h-12 w-12 text-text-tertiary mx-auto mb-4" />
-                <div className="space-y-2">
-                  <p className="text-text-primary font-medium">
-                    Drop your PDFs here or click to browse
-                  </p>
-                  <p className="text-sm text-text-secondary">
-                    Supports multiple files • Max 10MB per file
-                  </p>
+                <div className="relative z-20 pointer-events-none">
+                  <Upload className="h-12 w-12 text-text-tertiary mx-auto mb-4" />
+                  <div className="space-y-2">
+                    <p className="text-text-primary font-medium">
+                      Drop your PDFs here or click to browse
+                    </p>
+                    <p className="text-sm text-text-secondary">
+                      Supports multiple files • Max 10MB per file
+                    </p>
+                  </div>
                 </div>
                 
                 {selectedFiles.length > 0 && (
-                  <div className="mt-4 space-y-2">
+                  <div className="mt-4 space-y-2 relative z-20 pointer-events-none">
                     <p className="text-sm font-medium text-text-primary">
                       {selectedFiles.length} file{selectedFiles.length > 1 ? 's' : ''} selected:
                     </p>
