@@ -30,6 +30,29 @@ const Index = () => {
     setShowReader(true);
   };
 
+  const handleFeatureDemo = (feature: string) => {
+    // Create a demo document to showcase features
+    const demoDoc: PDFDocument = {
+      id: 'demo-feature',
+      name: 'Feature Demo - AI in Healthcare.pdf',
+      url: '/demo-document.pdf',
+      outline: [
+        { id: '1', title: 'Abstract', level: 1, page: 1 },
+        { id: '2', title: 'Introduction', level: 1, page: 2 },
+        { id: '3', title: 'Background and Related Work', level: 1, page: 4 },
+        { id: '4', title: 'Methodology', level: 1, page: 10 },
+        { id: '5', title: 'Results and Analysis', level: 1, page: 16 },
+        { id: '6', title: 'Discussion', level: 1, page: 22 },
+        { id: '7', title: 'Conclusion', level: 1, page: 26 }
+      ]
+    };
+    
+    setDocuments([demoDoc]);
+    setPersona('Researcher');
+    setJobToBeDone(`Exploring ${feature} feature`);
+    setShowReader(true);
+  };
+
   const handleBack = () => {
     setShowReader(false);
     setDocuments([]);
@@ -46,7 +69,7 @@ const Index = () => {
     );
   }
 
-  return <LandingPage onStart={handleStart} />;
+  return <LandingPage onStart={handleStart} onFeatureDemo={handleFeatureDemo} />;
 };
 
 export default Index;

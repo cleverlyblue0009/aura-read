@@ -17,9 +17,10 @@ import {
 
 interface LandingPageProps {
   onStart: (files: File[], persona: string, jobToBeDone: string) => void;
+  onFeatureDemo: (feature: string) => void;
 }
 
-export function LandingPage({ onStart }: LandingPageProps) {
+export function LandingPage({ onStart, onFeatureDemo }: LandingPageProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [persona, setPersona] = useState('');
   const [jobToBeDone, setJobToBeDone] = useState('');
@@ -48,32 +49,38 @@ export function LandingPage({ onStart }: LandingPageProps) {
     {
       icon: Brain,
       title: "AI Insights",
-      description: "Get key takeaways and contradictions powered by Gemini"
+      description: "Get key takeaways and contradictions powered by Gemini",
+      demoKey: "insights"
     },
     {
       icon: Volume2,
       title: "Podcast Mode",
-      description: "Listen to AI-narrated summaries of any section"
+      description: "Listen to AI-narrated summaries of any section",
+      demoKey: "podcast"
     },
     {
       icon: Accessibility,
       title: "Universal Access",
-      description: "Dyslexia-friendly fonts, voice reading, and color-blind support"
+      description: "Dyslexia-friendly fonts, voice reading, and color-blind support",
+      demoKey: "accessibility"
     },
     {
       icon: Eye,
       title: "Smart Highlights",
-      description: "Automatically highlight content relevant to your role"
+      description: "Automatically highlight content relevant to your role",
+      demoKey: "highlights"
     },
     {
       icon: Clock,
       title: "Reading Progress",
-      description: "Track your progress with time estimates"
+      description: "Track your progress with time estimates",
+      demoKey: "progress"
     },
     {
       icon: Palette,
       title: "Adaptive Themes",
-      description: "Light, dark, and pastel themes for comfortable reading"
+      description: "Light, dark, and pastel themes for comfortable reading",
+      demoKey: "themes"
     }
   ];
 
@@ -88,26 +95,44 @@ export function LandingPage({ onStart }: LandingPageProps) {
         </div>
       </header>
 
-      {/* Hero Section */}
+          {/* Hero Section */}
       <main className="flex-1 flex flex-col items-center justify-center p-6">
-        <div className="max-w-4xl mx-auto text-center space-y-8 animate-fade-in">
-          <div className="space-y-6">
-            <h2 className="text-4xl md:text-6xl font-bold text-text-primary leading-[1.1] tracking-tight">
+        <div className="max-w-5xl mx-auto text-center space-y-12 animate-fade-in">
+          <div className="space-y-8">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand-primary/10 text-brand-primary text-sm font-medium border border-brand-primary/20">
+              <div className="w-2 h-2 bg-brand-primary rounded-full animate-pulse"></div>
+              AI-Powered Reading Assistant
+            </div>
+            <h2 className="text-5xl md:text-7xl font-bold text-text-primary leading-[1.05] tracking-tight">
               Transform PDFs into
-              <span className="text-transparent bg-gradient-primary bg-clip-text block">intelligent reading</span>
+              <span className="text-transparent bg-gradient-primary bg-clip-text block mt-2">intelligent reading</span>
               experiences
             </h2>
-            <p className="text-xl text-text-secondary max-w-3xl mx-auto leading-relaxed">
+            <p className="text-xl md:text-2xl text-text-secondary max-w-4xl mx-auto leading-relaxed font-light">
               Upload your documents and unlock AI-powered insights, personalized highlights, 
               and universal accessibility features designed for every reader.
             </p>
+            <div className="flex items-center justify-center gap-8 text-sm text-text-tertiary">
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 bg-success rounded-full"></div>
+                Instant Processing
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 bg-success rounded-full"></div>
+                Privacy First
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 bg-success rounded-full"></div>
+                Fully Accessible
+              </div>
+            </div>
           </div>
 
           {/* Upload Zone */}
-          <Card className="max-w-3xl mx-auto shadow-lg border-0 bg-surface-elevated/60 backdrop-blur-sm">
-            <CardHeader className="pb-6">
-              <CardTitle className="text-2xl font-semibold">Get Started</CardTitle>
-              <CardDescription className="text-base">
+          <Card className="max-w-4xl mx-auto shadow-xl border-0 bg-surface-elevated/80 backdrop-blur-md">
+            <CardHeader className="pb-8 text-center">
+              <CardTitle className="text-3xl font-bold">Get Started</CardTitle>
+              <CardDescription className="text-lg text-text-secondary">
                 Upload your PDFs and personalize your reading experience
               </CardDescription>
             </CardHeader>
@@ -187,27 +212,45 @@ export function LandingPage({ onStart }: LandingPageProps) {
                 onClick={handleStart}
                 disabled={selectedFiles.length === 0}
                 size="lg"
-                className="w-full gap-3 h-14 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
+                className="w-full gap-3 h-16 text-xl font-bold shadow-xl hover:shadow-2xl transition-all duration-300 bg-gradient-primary hover:bg-gradient-primary/90"
               >
-                <BookOpen className="h-6 w-6" />
+                <BookOpen className="h-7 w-7" />
                 Start Intelligent Reading
               </Button>
             </CardContent>
           </Card>
 
           {/* Features Grid */}
-          <div className="grid md:grid-cols-3 gap-8 mt-16">
-            {features.map((feature, index) => (
-              <Card key={index} className="text-center hover-scale transition-all duration-300 border-0 shadow-md hover:shadow-lg bg-surface-elevated/40 backdrop-blur-sm">
-                <CardContent className="p-8 space-y-4">
-                  <div className="h-16 w-16 bg-brand-primary/10 rounded-xl flex items-center justify-center mx-auto">
-                    <feature.icon className="h-8 w-8 text-brand-primary" />
-                  </div>
-                  <h3 className="font-semibold text-lg text-text-primary">{feature.title}</h3>
-                  <p className="text-text-secondary leading-relaxed">{feature.description}</p>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="mt-20">
+            <div className="text-center mb-12">
+              <h3 className="text-3xl font-bold text-text-primary mb-4">Powerful Features</h3>
+              <p className="text-lg text-text-secondary max-w-2xl mx-auto">
+                Experience the future of document reading with our AI-powered tools
+              </p>
+            </div>
+            <div className="grid md:grid-cols-3 gap-8">
+              {features.map((feature, index) => (
+                <Card 
+                  key={index} 
+                  className="group text-center hover-scale transition-all duration-300 border-0 shadow-lg hover:shadow-2xl bg-surface-elevated/60 backdrop-blur-md cursor-pointer overflow-hidden"
+                  onClick={() => onFeatureDemo(feature.demoKey)}
+                >
+                  <CardContent className="p-10 space-y-6 relative">
+                    <div className="absolute inset-0 bg-gradient-subtle opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="relative z-10">
+                      <div className="h-20 w-20 bg-gradient-primary/10 rounded-2xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform duration-300 shadow-lg">
+                        <feature.icon className="h-10 w-10 text-brand-primary" />
+                      </div>
+                      <h3 className="font-bold text-xl text-text-primary group-hover:text-brand-primary transition-colors">{feature.title}</h3>
+                      <p className="text-text-secondary leading-relaxed group-hover:text-text-primary transition-colors">{feature.description}</p>
+                      <div className="inline-flex items-center gap-2 text-sm font-medium text-brand-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                        Try it now →
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
         </div>
       </main>
