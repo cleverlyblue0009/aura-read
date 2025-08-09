@@ -106,10 +106,10 @@ export function DocumentOutline({ outline, currentPage, onItemClick }: DocumentO
 
   return (
     <div className="h-full flex flex-col">
-      <div className="p-4 border-b border-border-subtle">
-        <h3 className="font-semibold text-text-primary mb-2">Document Outline</h3>
-        <p className="text-xs text-text-secondary">
-          {outline.length} sections • Page {currentPage}
+      <div className="p-5 border-b border-border-subtle">
+        <h3 className="font-semibold text-lg text-text-primary mb-2">Document Outline</h3>
+        <p className="text-sm text-text-secondary">
+          {outline.length} sections • Currently on page {currentPage}
         </p>
       </div>
 
@@ -119,19 +119,19 @@ export function DocumentOutline({ outline, currentPage, onItemClick }: DocumentO
         </div>
       </ScrollArea>
 
-      <div className="p-4 border-t border-border-subtle">
-        <div className="text-xs text-text-secondary space-y-1">
-          <div className="flex justify-between">
-            <span>Reading Progress</span>
-            <span>{Math.round((currentPage / 30) * 100)}%</span>
+      <div className="p-5 border-t border-border-subtle bg-surface-elevated/30">
+        <div className="text-sm text-text-secondary space-y-3">
+          <div className="flex justify-between items-center">
+            <span className="font-medium">Reading Progress</span>
+            <span className="font-semibold text-brand-primary">{Math.round((currentPage / 30) * 100)}%</span>
           </div>
-          <div className="w-full bg-background-secondary rounded-full h-1.5">
+          <div className="w-full bg-background-secondary rounded-full h-2">
             <div 
-              className="bg-brand-primary h-1.5 rounded-full transition-all duration-300"
+              className="bg-gradient-primary h-2 rounded-full transition-all duration-500"
               style={{ width: `${Math.min((currentPage / 30) * 100, 100)}%` }}
             />
           </div>
-          <div className="text-center">
+          <div className="text-center text-text-tertiary">
             Est. {Math.max(1, Math.round((30 - currentPage) * 1.5))} min remaining
           </div>
         </div>

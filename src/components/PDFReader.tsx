@@ -112,39 +112,41 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-surface-elevated/90 backdrop-blur-sm">
-        <div className="flex items-center gap-4">
+      <header className="flex items-center justify-between px-8 py-5 border-b border-border-subtle bg-surface-elevated/95 backdrop-blur-md shadow-sm">
+        <div className="flex items-center gap-6">
           {onBack && (
             <Button
               variant="ghost"
               size="sm"
               onClick={onBack}
-              className="gap-2"
+              className="gap-2 hover:bg-surface-hover"
             >
               ←
               Back
             </Button>
           )}
           
-          <div className="flex items-center gap-3">
-            <BookOpen className="h-6 w-6 text-brand-primary" />
+          <div className="flex items-center gap-4">
+            <div className="h-10 w-10 bg-brand-primary/10 rounded-lg flex items-center justify-center">
+              <BookOpen className="h-6 w-6 text-brand-primary" />
+            </div>
             <div>
               <h1 className="text-xl font-bold text-text-primary">DocuSense</h1>
               {persona && (
-                <p className="text-xs text-text-secondary">
-                  Reading as: {persona} • Goal: {jobToBeDone}
+                <p className="text-sm text-text-secondary font-medium">
+                  {persona} • {jobToBeDone}
                 </p>
               )}
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setLeftSidebarOpen(!leftSidebarOpen)}
-            className="gap-2"
+            className="gap-2 hover:bg-surface-hover"
             aria-label="Toggle outline"
           >
             <Menu className="h-4 w-4" />
@@ -155,12 +157,14 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
             variant="ghost"
             size="sm"
             onClick={() => setRightPanelOpen(!rightPanelOpen)}
-            className="gap-2"
+            className="gap-2 hover:bg-surface-hover"
             aria-label="Toggle utilities"
           >
             <Settings className="h-4 w-4" />
             Tools
           </Button>
+          
+          <div className="h-6 w-px bg-border-subtle mx-2" />
           
           <ThemeToggle />
         </div>
@@ -169,7 +173,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
       <div className="flex flex-1 min-h-0">
         {/* Left Sidebar - Outline & Navigation */}
         {leftSidebarOpen && (
-          <aside className="w-80 bg-surface-elevated border-r border-border-subtle flex flex-col animate-fade-in">
+          <aside className="w-80 bg-surface-elevated/50 border-r border-border-subtle flex flex-col animate-fade-in backdrop-blur-sm">
             {currentDocument && (
               <DocumentOutline
                 outline={currentDocument.outline}
@@ -218,9 +222,9 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
 
         {/* Right Panel - Interactive Utilities */}
         {rightPanelOpen && (
-          <aside className="w-96 bg-surface-elevated border-l border-border-subtle flex flex-col animate-fade-in">
-            <div className="p-4 border-b border-border-subtle">
-              <div className="flex gap-1 overflow-x-auto">
+          <aside className="w-96 bg-surface-elevated/50 border-l border-border-subtle flex flex-col animate-fade-in backdrop-blur-sm">
+            <div className="p-5 border-b border-border-subtle">
+              <div className="grid grid-cols-2 gap-2">
                 {[
                   { key: 'insights', label: 'Insights', icon: BookOpen },
                   { key: 'podcast', label: 'Podcast', icon: Settings },
@@ -232,7 +236,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
                     variant={activeRightPanel === key ? "default" : "ghost"}
                     size="sm"
                     onClick={() => setActiveRightPanel(activeRightPanel === key ? null : key as any)}
-                    className="gap-2 whitespace-nowrap"
+                    className="gap-2 h-10 justify-start"
                   >
                     <Icon className="h-4 w-4" />
                     {label}

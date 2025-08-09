@@ -91,25 +91,24 @@ export function LandingPage({ onStart }: LandingPageProps) {
       {/* Hero Section */}
       <main className="flex-1 flex flex-col items-center justify-center p-6">
         <div className="max-w-4xl mx-auto text-center space-y-8 animate-fade-in">
-          <div className="space-y-4">
-            <h2 className="text-4xl md:text-5xl font-bold text-text-primary leading-tight">
-              Turn your PDFs into an
-              <span className="text-transparent bg-gradient-primary bg-clip-text"> intelligent</span>,
-              <br />
-              <span className="text-transparent bg-gradient-primary bg-clip-text">accessible</span> reading experience
+          <div className="space-y-6">
+            <h2 className="text-4xl md:text-6xl font-bold text-text-primary leading-[1.1] tracking-tight">
+              Transform PDFs into
+              <span className="text-transparent bg-gradient-primary bg-clip-text block">intelligent reading</span>
+              experiences
             </h2>
-            <p className="text-lg text-text-secondary max-w-2xl mx-auto">
-              Upload your documents and get AI-powered insights, personalized highlights, 
+            <p className="text-xl text-text-secondary max-w-3xl mx-auto leading-relaxed">
+              Upload your documents and unlock AI-powered insights, personalized highlights, 
               and universal accessibility features designed for every reader.
             </p>
           </div>
 
           {/* Upload Zone */}
-          <Card className="max-w-2xl mx-auto">
-            <CardHeader>
-              <CardTitle className="text-xl">Get Started</CardTitle>
-              <CardDescription>
-                Upload your PDFs and tell us about your reading goals
+          <Card className="max-w-3xl mx-auto shadow-lg border-0 bg-surface-elevated/60 backdrop-blur-sm">
+            <CardHeader className="pb-6">
+              <CardTitle className="text-2xl font-semibold">Get Started</CardTitle>
+              <CardDescription className="text-base">
+                Upload your PDFs and personalize your reading experience
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -186,22 +185,24 @@ export function LandingPage({ onStart }: LandingPageProps) {
                 onClick={handleStart}
                 disabled={selectedFiles.length === 0}
                 size="lg"
-                className="w-full gap-2"
+                className="w-full gap-3 h-14 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
               >
-                <BookOpen className="h-5 w-5" />
-                Start Reading Experience
+                <BookOpen className="h-6 w-6" />
+                Start Intelligent Reading
               </Button>
             </CardContent>
           </Card>
 
           {/* Features Grid */}
-          <div className="grid md:grid-cols-3 gap-6 mt-12">
+          <div className="grid md:grid-cols-3 gap-8 mt-16">
             {features.map((feature, index) => (
-              <Card key={index} className="text-center hover-scale transition-all duration-300">
-                <CardContent className="p-6 space-y-3">
-                  <feature.icon className="h-8 w-8 text-brand-primary mx-auto" />
-                  <h3 className="font-semibold text-text-primary">{feature.title}</h3>
-                  <p className="text-sm text-text-secondary">{feature.description}</p>
+              <Card key={index} className="text-center hover-scale transition-all duration-300 border-0 shadow-md hover:shadow-lg bg-surface-elevated/40 backdrop-blur-sm">
+                <CardContent className="p-8 space-y-4">
+                  <div className="h-16 w-16 bg-brand-primary/10 rounded-xl flex items-center justify-center mx-auto">
+                    <feature.icon className="h-8 w-8 text-brand-primary" />
+                  </div>
+                  <h3 className="font-semibold text-lg text-text-primary">{feature.title}</h3>
+                  <p className="text-text-secondary leading-relaxed">{feature.description}</p>
                 </CardContent>
               </Card>
             ))}
