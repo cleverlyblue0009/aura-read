@@ -78,7 +78,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
     isReading: isActivelyReading
   });
 
-  // Initialize with first document from props or mock document
+  // Initialize with first document from props
   useEffect(() => {
     if (documents && documents.length > 0 && !currentDocument) {
       setCurrentDocument(documents[0]);
@@ -230,31 +230,32 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
           </div>
 
           <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setLeftSidebarOpen(!leftSidebarOpen)}
-            className="gap-2 hover:bg-surface-hover"
-            aria-label="Toggle outline"
-          >
-            <Menu className="h-4 w-4" />
-            Outline
-          </Button>
-          
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setRightPanelOpen(!rightPanelOpen)}
-            className="gap-2 hover:bg-surface-hover"
-            aria-label="Toggle utilities"
-          >
-            <Settings className="h-4 w-4" />
-            Tools
-          </Button>
-          
-          <div className="h-6 w-px bg-border-subtle mx-2" />
-          
-          <ThemeToggle />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setLeftSidebarOpen(!leftSidebarOpen)}
+              className="gap-2 hover:bg-surface-hover"
+              aria-label="Toggle outline"
+            >
+              <Menu className="h-4 w-4" />
+              Outline
+            </Button>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setRightPanelOpen(!rightPanelOpen)}
+              className="gap-2 hover:bg-surface-hover"
+              aria-label="Toggle utilities"
+            >
+              <Settings className="h-4 w-4" />
+              Tools
+            </Button>
+            
+            <div className="h-6 w-px bg-border-subtle mx-2" />
+            
+            <ThemeToggle />
+          </div>
         </div>
         
         {/* Reading Progress Bar */}
