@@ -19,8 +19,16 @@ import {
   Upload, 
   BookOpen, 
   Settings,
-  Palette
+  Palette,
+  Globe,
+  ChevronDown
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export interface PDFDocument {
   id: string;
@@ -53,6 +61,19 @@ interface PDFReaderProps {
   onBack?: () => void;
 }
 
+const SUPPORTED_LANGUAGES = [
+  { code: 'en', name: 'English', flag: '🇺🇸' },
+  { code: 'es', name: 'Español', flag: '🇪🇸' },
+  { code: 'fr', name: 'Français', flag: '🇫🇷' },
+  { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
+  { code: 'it', name: 'Italiano', flag: '🇮🇹' },
+  { code: 'pt', name: 'Português', flag: '🇵🇹' },
+  { code: 'ru', name: 'Русский', flag: '🇷🇺' },
+  { code: 'zh', name: '中文', flag: '🇨🇳' },
+  { code: 'ja', name: '日本語', flag: '🇯🇵' },
+  { code: 'ko', name: '한국어', flag: '🇰🇷' },
+];
+
 export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReaderProps) {
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
@@ -68,6 +89,8 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
   const [readingStartTime, setReadingStartTime] = useState<number>(Date.now());
   const [isActivelyReading, setIsActivelyReading] = useState(true);
   const [totalPages, setTotalPages] = useState(30); // Will be updated from PDF
+  const [selectedLanguage, setSelectedLanguage] = useState(SUPPORTED_LANGUAGES[0]);
+  const [isDocumentLoaded, setIsDocumentLoaded] = useState(false);
   const { toast } = useToast();
 
   // Reading progress tracking
@@ -78,45 +101,20 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
     isReading: isActivelyReading
   });
 
-  // Mock document for demo
-  const mockDocument: PDFDocument = {
-    id: 'demo-doc',
-    name: 'Artificial Intelligence in Healthcare - Research Paper.pdf',
-    url: '/demo-document.pdf',
-    outline: [
-      { id: '1', title: 'Abstract', level: 1, page: 1 },
-      { id: '2', title: 'Introduction', level: 1, page: 2 },
-      { id: '3', title: 'Background and Related Work', level: 1, page: 4 },
-      { id: '4', title: 'Machine Learning Applications', level: 2, page: 5 },
-      { id: '5', title: 'Deep Learning in Medical Imaging', level: 2, page: 7 },
-      { id: '6', title: 'Methodology', level: 1, page: 10 },
-      { id: '7', title: 'Data Collection and Preprocessing', level: 2, page: 11 },
-      { id: '8', title: 'Model Architecture', level: 2, page: 13 },
-      { id: '9', title: 'Results and Analysis', level: 1, page: 16 },
-      { id: '10', title: 'Clinical Trial Results', level: 2, page: 17 },
-      { id: '11', title: 'Performance Metrics', level: 2, page: 19 },
-      { id: '12', title: 'Discussion', level: 1, page: 22 },
-      { id: '13', title: 'Future Work and Limitations', level: 2, page: 24 },
-      { id: '14', title: 'Conclusion', level: 1, page: 26 },
-      { id: '15', title: 'References', level: 1, page: 28 }
-    ]
-  };
-
-  // Initialize with first document from props or mock document
+  // Initialize with first document from props
   useEffect(() => {
     if (documents && documents.length > 0 && !currentDocument) {
       setCurrentDocument(documents[0]);
-    } else if (!currentDocument && !documents) {
-      setCurrentDocument(mockDocument);
+      setIsDocumentLoaded(true);
     }
   }, [documents, currentDocument]);
 
   // Load related sections when page or document changes
   useEffect(() => {
-    if (currentDocument && persona && jobToBeDone) {
+    if (currentDocument && persona && jobToBeDone && isDocumentLoaded) {
       loadRelatedSections();
     }
-  }, [currentDocument, currentPage, persona, jobToBeDone]);
+  }, [currentDocument, currentPage, persona, jobToBeDone, isDocumentLoaded]);
 
   const loadRelatedSections = async () => {
     if (!currentDocument || !persona || !jobToBeDone) return;
@@ -191,6 +189,11 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
       
     } catch (error) {
       console.error('Failed to generate insights for selected text:', error);
+      toast({
+        title: "Failed to generate insights",
+        description: "Unable to analyze selected text. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -207,6 +210,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
       setCurrentDocument(newDoc);
       setCurrentPage(1);
       setHighlights([]);
+      setIsDocumentLoaded(true);
     }
   };
 
@@ -216,6 +220,19 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
 
   const handleHighlight = (highlight: Highlight) => {
     setHighlights(prev => [...prev, highlight]);
+  };
+
+  const handleLanguageChange = (language: typeof SUPPORTED_LANGUAGES[0]) => {
+    setSelectedLanguage(language);
+    // Here you would typically trigger a translation of the current content
+    toast({
+      title: "Language changed",
+      description: `Switched to ${language.name}`,
+    });
+  };
+
+  const handleDocumentLoad = () => {
+    setIsDocumentLoaded(true);
   };
 
   return (
@@ -252,31 +269,63 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
           </div>
 
           <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setLeftSidebarOpen(!leftSidebarOpen)}
-            className="gap-2 hover:bg-surface-hover"
-            aria-label="Toggle outline"
-          >
-            <Menu className="h-4 w-4" />
-            Outline
-          </Button>
-          
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setRightPanelOpen(!rightPanelOpen)}
-            className="gap-2 hover:bg-surface-hover"
-            aria-label="Toggle utilities"
-          >
-            <Settings className="h-4 w-4" />
-            Tools
-          </Button>
-          
-          <div className="h-6 w-px bg-border-subtle mx-2" />
-          
-          <ThemeToggle />
+            {/* Language Selector */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2 hover:bg-surface-hover"
+                >
+                  <Globe className="h-4 w-4" />
+                  <span>{selectedLanguage.flag}</span>
+                  <span className="hidden sm:inline">{selectedLanguage.code.toUpperCase()}</span>
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                {SUPPORTED_LANGUAGES.map((language) => (
+                  <DropdownMenuItem
+                    key={language.code}
+                    onClick={() => handleLanguageChange(language)}
+                    className="gap-3"
+                  >
+                    <span className="text-lg">{language.flag}</span>
+                    <span>{language.name}</span>
+                    {selectedLanguage.code === language.code && (
+                      <span className="ml-auto text-brand-primary">✓</span>
+                    )}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setLeftSidebarOpen(!leftSidebarOpen)}
+              className="gap-2 hover:bg-surface-hover"
+              aria-label="Toggle outline"
+            >
+              <Menu className="h-4 w-4" />
+              Outline
+            </Button>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setRightPanelOpen(!rightPanelOpen)}
+              className="gap-2 hover:bg-surface-hover"
+              aria-label="Toggle utilities"
+            >
+              <Settings className="h-4 w-4" />
+              Tools
+            </Button>
+            
+            <div className="h-6 w-px bg-border-subtle mx-2" />
+            
+            <ThemeToggle />
+          </div>
         </div>
         
         {/* Reading Progress Bar */}

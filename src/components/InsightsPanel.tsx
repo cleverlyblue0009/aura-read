@@ -41,42 +41,11 @@ export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: p
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
 
-  // Mock insights data
-  const mockInsights: Insight[] = [
-    {
-      id: '1',
-      type: 'takeaway',
-      title: 'AI Accuracy Breakthrough',
-      content: 'The study demonstrates that machine learning algorithms achieve 94% accuracy in diagnostic imaging, representing a significant improvement over traditional methods.',
-      relevance: 0.95,
-      pageReference: 1,
-      source: 'Abstract'
-    },
-    {
-      id: '2',
-      type: 'fact',
-      title: 'Diagnostic Time Reduction',
-      content: 'AI implementation reduces diagnostic time by up to 60%, enabling faster patient care and improved healthcare efficiency.',
-      relevance: 0.88,
-      pageReference: 1
-    },
-    {
-      id: '3',
-      type: 'contradiction',
-      title: 'Implementation Challenges',
-      content: 'While AI shows great promise, the study identifies significant barriers including data privacy concerns and regulatory compliance requirements.',
-      relevance: 0.82,
-      pageReference: 2
-    },
-    {
-      id: '4',
-      type: 'connection',
-      title: 'Cross-Domain Application',
-      content: 'The methodologies described could be adapted for other domains like autonomous vehicles or financial fraud detection.',
-      relevance: 0.75,
-      pageReference: 10
-    }
-  ];
+  // Update persona and job when props change
+  useEffect(() => {
+    if (propPersona) setPersona(propPersona);
+    if (propJobToBeDone) setJobToBeDone(propJobToBeDone);
+  }, [propPersona, propJobToBeDone]);
 
   const handleGenerateInsights = async () => {
     if (!currentText || !persona || !jobToBeDone) {
@@ -122,8 +91,8 @@ export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: p
         description: "Unable to analyze content. Please try again.",
         variant: "destructive"
       });
-      // Fallback to mock data
-      setInsights(mockInsights);
+      // Don't fall back to mock data - keep empty state
+      setInsights([]);
     } finally {
       setIsGenerating(false);
     }
@@ -160,14 +129,20 @@ export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: p
 
   const getInsightTypeLabel = (type: Insight['type']) => {
     switch (type) {
-      case 'key-insight':
+      case 'takeaway':
         return 'Key Insight';
       case 'fact':
         return 'Did You Know?';
       case 'contradiction':
         return 'Contradiction';
-      case 'inspiration':
-        return 'Inspiration';
+      case 'connection':
+        return 'Connection';
+      case 'info':
+        return 'Information';
+      case 'error':
+        return 'Error';
+      default:
+        return 'Insight';
     }
   };
 
