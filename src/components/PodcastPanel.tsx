@@ -58,30 +58,6 @@ export function PodcastPanel({
   const audioRef = useRef<HTMLAudioElement>(null);
   const { toast } = useToast();
 
-  const mockSections: AudioSection[] = [
-    {
-      id: '1',
-      title: 'Chapter Summary',
-      duration: 75,
-      type: 'summary',
-      transcript: 'In this section, we explore the groundbreaking applications of artificial intelligence in healthcare, focusing on diagnostic imaging and machine learning algorithms that achieve 94% accuracy rates.'
-    },
-    {
-      id: '2',
-      title: 'Key Insights',
-      duration: 60,
-      type: 'insights',
-      transcript: 'The most significant finding is the reduction in diagnostic time by 60%, which has profound implications for patient care efficiency and healthcare system optimization.'
-    },
-    {
-      id: '3',
-      title: 'Related Content',
-      duration: 45,
-      type: 'content',
-      transcript: 'Cross-referencing with other research papers shows similar trends in AI adoption across medical institutions, with particular success in radiology and pathology departments.'
-    }
-  ];
-
   const handleGenerateAudio = async () => {
     if (!currentText) {
       toast({
@@ -125,12 +101,13 @@ export function PodcastPanel({
       console.error('Failed to generate podcast:', error);
       toast({
         title: "Podcast generation failed",
-        description: "Unable to generate audio. Please try again.",
+        description: "Unable to generate audio. Please check your connection and try again.",
         variant: "destructive"
       });
-      // Fallback to mock data
-      setAudioSections(mockSections);
-      setDuration(mockSections.reduce((acc, section) => acc + section.duration, 0));
+      // Don't fallback to mock data - leave sections empty
+      setAudioSections([]);
+      setPodcastScript('');
+      setAudioUrl('');
     } finally {
       setIsGenerating(false);
     }

@@ -20,10 +20,9 @@ import {
 
 interface LandingPageProps {
   onStart: (documents: DocumentInfo[], persona: string, jobToBeDone: string) => void;
-  onFeatureDemo: (feature: string) => void;
 }
 
-export function LandingPage({ onStart, onFeatureDemo }: LandingPageProps) {
+export function LandingPage({ onStart }: LandingPageProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [persona, setPersona] = useState('');
   const [jobToBeDone, setJobToBeDone] = useState('');
@@ -84,45 +83,6 @@ export function LandingPage({ onStart, onFeatureDemo }: LandingPageProps) {
       setIsUploading(false);
     }
   };
-
-  const features = [
-    {
-      icon: Brain,
-      title: "AI Insights",
-      description: "Get key takeaways and contradictions powered by Gemini",
-      demoKey: "insights"
-    },
-    {
-      icon: Volume2,
-      title: "Podcast Mode",
-      description: "Listen to AI-narrated summaries of any section",
-      demoKey: "podcast"
-    },
-    {
-      icon: Accessibility,
-      title: "Universal Access",
-      description: "Dyslexia-friendly fonts, voice reading, and color-blind support",
-      demoKey: "accessibility"
-    },
-    {
-      icon: Eye,
-      title: "Smart Highlights",
-      description: "Automatically highlight content relevant to your role",
-      demoKey: "highlights"
-    },
-    {
-      icon: Clock,
-      title: "Reading Progress",
-      description: "Track your progress with time estimates",
-      demoKey: "progress"
-    },
-    {
-      icon: Palette,
-      title: "Adaptive Themes",
-      description: "Light, dark, and pastel themes for comfortable reading",
-      demoKey: "themes"
-    }
-  ];
 
   return (
     <div className="min-h-screen bg-gradient-subtle flex flex-col">
@@ -278,28 +238,67 @@ export function LandingPage({ onStart, onFeatureDemo }: LandingPageProps) {
               </p>
             </div>
             <div className="grid md:grid-cols-3 gap-8">
-              {features.map((feature, index) => (
-                <Card 
-                  key={index} 
-                  className="group text-center hover-scale transition-all duration-300 border-0 shadow-lg hover:shadow-2xl bg-surface-elevated/60 backdrop-blur-md cursor-pointer overflow-hidden"
-                  onClick={() => onFeatureDemo(feature.demoKey)}
-                >
-                  <CardContent className="p-10 space-y-6 relative">
-                    <div className="absolute inset-0 bg-gradient-subtle opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                    <div className="relative z-10">
-                      <div className="h-20 w-20 bg-gradient-primary/10 rounded-2xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform duration-300 shadow-lg">
-                        <feature.icon className="h-10 w-10 text-brand-primary" />
-                      </div>
-                      <h3 className="font-bold text-xl text-text-primary group-hover:text-brand-primary transition-colors">{feature.title}</h3>
-                      <p className="text-text-secondary leading-relaxed group-hover:text-text-primary transition-colors">{feature.description}</p>
-                      <div className="inline-flex items-center gap-2 text-sm font-medium text-brand-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                        Try it now →
-                      </div>
+                {/* Features showcase - informational only */}
+                <Card className="group text-center transition-all duration-300 border-0 shadow-lg hover:shadow-2xl bg-surface-elevated/60 backdrop-blur-md">
+                  <CardContent className="p-10 space-y-6">
+                    <div className="h-20 w-20 bg-gradient-primary/10 rounded-2xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform duration-300 shadow-lg">
+                      <Brain className="h-10 w-10 text-brand-primary" />
                     </div>
+                    <h3 className="font-bold text-xl text-text-primary">AI Insights</h3>
+                    <p className="text-text-secondary leading-relaxed">Get key takeaways and contradictions powered by advanced AI</p>
                   </CardContent>
                 </Card>
-              ))}
-            </div>
+
+                <Card className="group text-center transition-all duration-300 border-0 shadow-lg hover:shadow-2xl bg-surface-elevated/60 backdrop-blur-md">
+                  <CardContent className="p-10 space-y-6">
+                    <div className="h-20 w-20 bg-gradient-primary/10 rounded-2xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform duration-300 shadow-lg">
+                      <Volume2 className="h-10 w-10 text-brand-primary" />
+                    </div>
+                    <h3 className="font-bold text-xl text-text-primary">Podcast Mode</h3>
+                    <p className="text-text-secondary leading-relaxed">Listen to AI-narrated summaries of any section</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="group text-center transition-all duration-300 border-0 shadow-lg hover:shadow-2xl bg-surface-elevated/60 backdrop-blur-md">
+                  <CardContent className="p-10 space-y-6">
+                    <div className="h-20 w-20 bg-gradient-primary/10 rounded-2xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform duration-300 shadow-lg">
+                      <Accessibility className="h-10 w-10 text-brand-primary" />
+                    </div>
+                    <h3 className="font-bold text-xl text-text-primary">Universal Access</h3>
+                    <p className="text-text-secondary leading-relaxed">Dyslexia-friendly fonts, voice reading, and accessibility support</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="group text-center transition-all duration-300 border-0 shadow-lg hover:shadow-2xl bg-surface-elevated/60 backdrop-blur-md">
+                  <CardContent className="p-10 space-y-6">
+                    <div className="h-20 w-20 bg-gradient-primary/10 rounded-2xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform duration-300 shadow-lg">
+                      <Eye className="h-10 w-10 text-brand-primary" />
+                    </div>
+                    <h3 className="font-bold text-xl text-text-primary">Smart Highlights</h3>
+                    <p className="text-text-secondary leading-relaxed">Automatically highlight content relevant to your role</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="group text-center transition-all duration-300 border-0 shadow-lg hover:shadow-2xl bg-surface-elevated/60 backdrop-blur-md">
+                  <CardContent className="p-10 space-y-6">
+                    <div className="h-20 w-20 bg-gradient-primary/10 rounded-2xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform duration-300 shadow-lg">
+                      <Clock className="h-10 w-10 text-brand-primary" />
+                    </div>
+                    <h3 className="font-bold text-xl text-text-primary">Reading Progress</h3>
+                    <p className="text-text-secondary leading-relaxed">Track your progress with intelligent time estimates</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="group text-center transition-all duration-300 border-0 shadow-lg hover:shadow-2xl bg-surface-elevated/60 backdrop-blur-md">
+                  <CardContent className="p-10 space-y-6">
+                    <div className="h-20 w-20 bg-gradient-primary/10 rounded-2xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform duration-300 shadow-lg">
+                      <Palette className="h-10 w-10 text-brand-primary" />
+                    </div>
+                    <h3 className="font-bold text-xl text-text-primary">Adaptive Themes</h3>
+                    <p className="text-text-secondary leading-relaxed">Light, dark, and accessible themes for comfortable reading</p>
+                  </CardContent>
+                </Card>
+              </div>
           </div>
         </div>
       </main>

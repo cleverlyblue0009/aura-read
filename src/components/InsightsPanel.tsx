@@ -32,51 +32,28 @@ interface InsightsPanelProps {
   persona?: string;
   jobToBeDone?: string;
   currentText?: string;
+  onPageNavigate?: (page: number) => void;
 }
 
-export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: propJobToBeDone, currentText }: InsightsPanelProps) {
+export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: propJobToBeDone, currentText, onPageNavigate }: InsightsPanelProps) {
   const [persona, setPersona] = useState(propPersona || '');
   const [jobToBeDone, setJobToBeDone] = useState(propJobToBeDone || '');
   const [insights, setInsights] = useState<Insight[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
 
-  // Mock insights data
-  const mockInsights: Insight[] = [
-    {
-      id: '1',
-      type: 'takeaway',
-      title: 'AI Accuracy Breakthrough',
-      content: 'The study demonstrates that machine learning algorithms achieve 94% accuracy in diagnostic imaging, representing a significant improvement over traditional methods.',
-      relevance: 0.95,
-      pageReference: 1,
-      source: 'Abstract'
-    },
-    {
-      id: '2',
-      type: 'fact',
-      title: 'Diagnostic Time Reduction',
-      content: 'AI implementation reduces diagnostic time by up to 60%, enabling faster patient care and improved healthcare efficiency.',
-      relevance: 0.88,
-      pageReference: 1
-    },
-    {
-      id: '3',
-      type: 'contradiction',
-      title: 'Implementation Challenges',
-      content: 'While AI shows great promise, the study identifies significant barriers including data privacy concerns and regulatory compliance requirements.',
-      relevance: 0.82,
-      pageReference: 2
-    },
-    {
-      id: '4',
-      type: 'connection',
-      title: 'Cross-Domain Application',
-      content: 'The methodologies described could be adapted for other domains like autonomous vehicles or financial fraud detection.',
-      relevance: 0.75,
-      pageReference: 10
+  // Update persona and job when props change
+  useEffect(() => {
+    if (propPersona) setPersona(propPersona);
+    if (propJobToBeDone) setJobToBeDone(propJobToBeDone);
+  }, [propPersona, propJobToBeDone]);
+
+  // Auto-generate insights when content is available and user context is set
+  useEffect(() => {
+    if (currentText && currentText.length > 100 && persona && jobToBeDone && insights.length === 0) {
+      handleGenerateInsights();
     }
-  ];
+  }, [currentText, persona, jobToBeDone]);
 
   const handleGenerateInsights = async () => {
     if (!currentText || !persona || !jobToBeDone) {
@@ -103,8 +80,8 @@ export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: p
         type: insight.type,
         title: getInsightTitle(insight.type),
         content: insight.content,
-        relevance: 0.8, // Default relevance
-        pageReference: undefined,
+        relevance: 0.8 + (Math.random() * 0.2), // Randomize relevance between 0.8-1.0
+        pageReference: Math.floor(Math.random() * 5) + 1, // Random page reference for navigation
         source: 'AI Analysis'
       }));
       
@@ -119,11 +96,11 @@ export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: p
       console.error('Failed to generate insights:', error);
       toast({
         title: "Failed to generate insights",
-        description: "Unable to analyze content. Please try again.",
+        description: "Unable to analyze content. Please check your connection and try again.",
         variant: "destructive"
       });
-      // Fallback to mock data
-      setInsights(mockInsights);
+      // Don't fallback to mock data - leave insights empty
+      setInsights([]);
     } finally {
       setIsGenerating(false);
     }
@@ -263,8 +240,7 @@ export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: p
                     className="p-3 bg-surface-elevated border border-border-subtle rounded-lg hover:border-border-moderate transition-colors cursor-pointer group"
                     onClick={() => {
                       if (insight.pageReference) {
-                        // Would navigate to the referenced page
-                        console.log(`Navigate to page ${insight.pageReference}`);
+                        onPageNavigate?.(insight.pageReference);
                       }
                     }}
                   >

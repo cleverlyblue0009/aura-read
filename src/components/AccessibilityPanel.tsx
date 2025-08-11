@@ -25,20 +25,17 @@ interface AccessibilityPanelProps {
   onColorBlindModeChange?: (enabled: boolean) => void;
 }
 
-export function AccessibilityPanel({ 
-  currentText, 
-  onFontSizeChange, 
-  onDyslexiaModeChange, 
-  onColorBlindModeChange 
-}: AccessibilityPanelProps) {
+export function AccessibilityPanel({ currentText, onFontSizeChange, onColorBlindModeChange }: AccessibilityPanelProps) {
   const [fontSize, setFontSize] = useState([16]);
-  const [lineHeight, setLineHeight] = useState([1.6]);
+  const [lineHeight, setLineHeight] = useState([1.5]);
   const [dyslexiaMode, setDyslexiaMode] = useState(false);
   const [colorBlindMode, setColorBlindMode] = useState(false);
+  const [highContrast, setHighContrast] = useState(false);
   const [voiceReading, setVoiceReading] = useState(false);
   const [simplifyText, setSimplifyText] = useState(false);
   const [showDefinitions, setShowDefinitions] = useState(true);
   const [readingTimer, setReadingTimer] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState('en');
   const [speechSynthesis, setSpeechSynthesis] = useState<SpeechSynthesis | null>(null);
   const [currentUtterance, setCurrentUtterance] = useState<SpeechSynthesisUtterance | null>(null);
   const [voiceSpeed, setVoiceSpeed] = useState([1.0]);
@@ -342,10 +339,11 @@ export function AccessibilityPanel({
                   variant="ghost"
                   size="sm"
                   className="w-full justify-start gap-2"
+                  onClick={() => setSelectedLanguage(lang.code)}
                 >
                   <span>{lang.flag}</span>
                   <span>{lang.label}</span>
-                  {lang.code === 'en' && (
+                  {lang.code === selectedLanguage && (
                     <Badge variant="secondary" className="ml-auto text-xs">
                       Active
                     </Badge>

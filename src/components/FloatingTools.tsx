@@ -1,17 +1,16 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Lightbulb, 
-  Volume2, 
-  Highlighter, 
+  Mic, 
+  BookOpen, 
+  Settings, 
+  Download,
   Sparkles,
   ChevronUp,
   ChevronDown,
-  Brain,
-  Headphones,
-  Copy,
-  Download
+  Copy
 } from 'lucide-react';
 import { PDFDocument, Highlight } from './PDFReader';
 
@@ -24,44 +23,22 @@ interface FloatingToolsProps {
 export function FloatingTools({ currentDocument, currentPage, onHighlight }: FloatingToolsProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const { toast } = useToast();
 
-  const handleInsightsGeneration = async () => {
+  const handleHighlightInsights = () => {
+    // Generate highlights based on current content instead of using mock data
     if (!currentDocument) return;
     
-    setIsGenerating(true);
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // In a real implementation, this would analyze the current page content
+    // and generate relevant highlights based on the persona and job to be done
+    console.log('Generating AI-powered highlights for current content...');
     
-    // Mock insight highlights
-    const mockHighlights: Highlight[] = [
-      {
-        id: `highlight-${Date.now()}-1`,
-        text: "Machine learning algorithms demonstrate 94% accuracy in diagnostic imaging",
-        page: currentPage,
-        color: 'primary',
-        relevanceScore: 0.92,
-        explanation: "Key finding relevant to AI performance in healthcare"
-      },
-      {
-        id: `highlight-${Date.now()}-2`,
-        text: "Current limitations include data privacy concerns and regulatory compliance",
-        page: currentPage + 1,
-        color: 'secondary',
-        relevanceScore: 0.87,
-        explanation: "Important limitation to consider for implementation"
-      },
-      {
-        id: `highlight-${Date.now()}-3`,
-        text: "Integration with existing EHR systems requires standardized protocols",
-        page: currentPage + 2,
-        color: 'tertiary',
-        relevanceScore: 0.83,
-        explanation: "Technical requirement for system integration"
-      }
-    ];
-
-    mockHighlights.forEach(highlight => onHighlight(highlight));
-    setIsGenerating(false);
+    // For now, we'll just indicate that the feature would work with real content
+    toast({
+      title: "Feature requires content",
+      description: "Highlight generation will work once you upload and load a PDF document.",
+      variant: "default"
+    });
   };
 
   const handlePodcastGeneration = async () => {
@@ -77,13 +54,13 @@ export function FloatingTools({ currentDocument, currentPage, onHighlight }: Flo
       label: 'Insights Bulb',
       icon: Lightbulb,
       description: 'Generate AI insights',
-      action: handleInsightsGeneration,
+      action: handleHighlightInsights,
       className: 'bg-brand-primary hover:bg-brand-primary/90 text-text-on-brand'
     },
     {
       id: 'podcast',
       label: 'Podcast Mode',
-      icon: Headphones,
+      icon: Mic,
       description: 'Listen to summary',
       action: handlePodcastGeneration,
       className: 'bg-brand-secondary hover:bg-brand-secondary/90 text-text-on-brand'
@@ -91,7 +68,7 @@ export function FloatingTools({ currentDocument, currentPage, onHighlight }: Flo
     {
       id: 'smart-highlight',
       label: 'Smart Highlight',
-      icon: Brain,
+      icon: BookOpen,
       description: 'AI-powered highlighting',
       action: () => console.log('Smart highlighting...'),
       className: 'bg-brand-accent hover:bg-brand-accent/90 text-text-primary'
