@@ -64,21 +64,30 @@ export function LandingPage({ onStart }: LandingPageProps) {
 
     setIsUploading(true);
     try {
+      console.log('Starting PDF upload...', selectedFiles);
       const uploadedDocuments = await apiService.uploadPDFs(selectedFiles);
+      
+      console.log('Upload successful:', uploadedDocuments);
+      
+      if (!uploadedDocuments || uploadedDocuments.length === 0) {
+        throw new Error('No documents returned from upload');
+      }
       
       toast({
         title: "Upload successful",
         description: `Successfully uploaded ${uploadedDocuments.length} document(s).`
       });
       
+      // Only call onStart if we have valid documents
       onStart(uploadedDocuments, persona, jobToBeDone);
     } catch (error) {
       console.error('Upload failed:', error);
       toast({
         title: "Upload failed",
-        description: "Failed to upload and process PDFs. Please try again.",
+        description: "Failed to upload and process PDFs. Please check your connection and try again.",
         variant: "destructive"
       });
+      // Don't call onStart if upload failed - stay on landing page
     } finally {
       setIsUploading(false);
     }

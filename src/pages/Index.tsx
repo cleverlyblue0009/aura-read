@@ -10,6 +10,14 @@ const Index = () => {
   const [jobToBeDone, setJobToBeDone] = useState('');
 
   const handleStart = (uploadedDocuments: DocumentInfo[], userPersona: string, userJob: string) => {
+    console.log('handleStart called with:', { uploadedDocuments, userPersona, userJob });
+    
+    // Only proceed if we have valid documents
+    if (!uploadedDocuments || uploadedDocuments.length === 0) {
+      console.error('No documents provided to handleStart');
+      return;
+    }
+
     // Convert backend DocumentInfo to frontend PDFDocument format
     const pdfDocs: PDFDocument[] = uploadedDocuments.map((doc) => ({
       id: doc.id,
@@ -22,6 +30,8 @@ const Index = () => {
         page: item.page
       }))
     }));
+    
+    console.log('Converted PDF documents:', pdfDocs);
     
     setDocuments(pdfDocs);
     setPersona(userPersona);
@@ -36,15 +46,39 @@ const Index = () => {
     setJobToBeDone('');
   };
 
-  if (showReader && documents.length > 0) {
-    return (
-      <PDFReader 
-        documents={documents}
-        persona={persona}
-        jobToBeDone={jobToBeDone}
-        onBack={handleBack}
-      />
-    );
+  // Debug logging
+  console.log('Index state:', { showReader, documentsLength: documents.length, persona, jobToBeDone });
+
+  // Show PDFReader only if we have documents AND showReader is true
+  if (showReader) {
+    if (documents.length > 0) {
+      return (
+        <PDFReader 
+          documents={documents}
+          persona={persona}
+          jobToBeDone={jobToBeDone}
+          onBack={handleBack}
+        />
+      );
+    } else {
+      // Show loading or error state if showReader is true but no documents
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <div className="text-center space-y-4">
+            <div className="text-lg font-medium text-text-primary">Loading documents...</div>
+            <div className="text-sm text-text-secondary">
+              If this persists, please go back and try uploading again.
+            </div>
+            <button 
+              onClick={handleBack}
+              className="px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-primary/90"
+            >
+              Go Back
+            </button>
+          </div>
+        </div>
+      );
+    }
   }
 
   return <LandingPage onStart={handleStart} />;
