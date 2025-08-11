@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Type, 
   Eye, 
@@ -13,10 +14,23 @@ import {
   Languages,
   Timer,
   PauseCircle,
-  PlayCircle
+  PlayCircle,
+  VolumeX
 } from 'lucide-react';
 
-export function AccessibilityPanel() {
+interface AccessibilityPanelProps {
+  currentText?: string;
+  onFontSizeChange?: (size: number) => void;
+  onDyslexiaModeChange?: (enabled: boolean) => void;
+  onColorBlindModeChange?: (enabled: boolean) => void;
+}
+
+export function AccessibilityPanel({ 
+  currentText, 
+  onFontSizeChange, 
+  onDyslexiaModeChange, 
+  onColorBlindModeChange 
+}: AccessibilityPanelProps) {
   const [fontSize, setFontSize] = useState([16]);
   const [lineHeight, setLineHeight] = useState([1.6]);
   const [dyslexiaMode, setDyslexiaMode] = useState(false);
@@ -25,6 +39,38 @@ export function AccessibilityPanel() {
   const [simplifyText, setSimplifyText] = useState(false);
   const [showDefinitions, setShowDefinitions] = useState(true);
   const [readingTimer, setReadingTimer] = useState(false);
+  const [speechSynthesis, setSpeechSynthesis] = useState<SpeechSynthesis | null>(null);
+  const [currentUtterance, setCurrentUtterance] = useState<SpeechSynthesisUtterance | null>(null);
+  const [voiceSpeed, setVoiceSpeed] = useState([1.0]);
+  const { toast } = useToast();
+
+  // Initialize speech synthesis
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      setSpeechSynthesis(window.speechSynthesis);
+    }
+  }, []);
+
+  // Handle font size changes
+  useEffect(() => {
+    if (onFontSizeChange) {
+      onFontSizeChange(fontSize[0]);
+    }
+  }, [fontSize, onFontSizeChange]);
+
+  // Handle dyslexia mode changes
+  useEffect(() => {
+    if (onDyslexiaModeChange) {
+      onDyslexiaModeChange(dyslexiaMode);
+    }
+  }, [dyslexiaMode, onDyslexiaModeChange]);
+
+  // Handle color blind mode changes
+  useEffect(() => {
+    if (onColorBlindModeChange) {
+      onColorBlindModeChange(colorBlindMode);
+    }
+  }, [colorBlindMode, onColorBlindModeChange]);
 
   const readingModes = [
     { id: 'normal', label: 'Normal', active: !dyslexiaMode && !colorBlindMode },
@@ -39,6 +85,61 @@ export function AccessibilityPanel() {
     { code: 'de', label: 'German', flag: '🇩🇪' },
     { code: 'zh', label: 'Chinese', flag: '🇨🇳' }
   ];
+
+  const handleVoiceReading = () => {
+    if (!speechSynthesis) {
+      toast({
+        title: "Voice reading not supported",
+        description: "Your browser doesn't support text-to-speech.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (voiceReading && currentUtterance) {
+      // Stop current reading
+      speechSynthesis.cancel();
+      setVoiceReading(false);
+      setCurrentUtterance(null);
+    } else {
+      // Start reading
+      if (!currentText) {
+        toast({
+          title: "No text to read",
+          description: "Please select some text or navigate to a section with content.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(currentText);
+      utterance.rate = voiceSpeed[0];
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+      
+      utterance.onstart = () => {
+        setVoiceReading(true);
+        setCurrentUtterance(utterance);
+      };
+      
+      utterance.onend = () => {
+        setVoiceReading(false);
+        setCurrentUtterance(null);
+      };
+      
+      utterance.onerror = () => {
+        setVoiceReading(false);
+        setCurrentUtterance(null);
+        toast({
+          title: "Voice reading failed",
+          description: "Unable to read the text. Please try again.",
+          variant: "destructive"
+        });
+      };
+
+      speechSynthesis.speak(utterance);
+    }
+  };
 
   return (
     <div className="h-full flex flex-col">
@@ -146,20 +247,41 @@ export function AccessibilityPanel() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setVoiceReading(!voiceReading)}
+                    onClick={handleVoiceReading}
                     className="p-1"
+                    disabled={!speechSynthesis}
                   >
                     {voiceReading ? (
                       <PauseCircle className="h-4 w-4" />
-                    ) : (
+                    ) : speechSynthesis ? (
                       <PlayCircle className="h-4 w-4" />
+                    ) : (
+                      <VolumeX className="h-4 w-4" />
                     )}
                   </Button>
                   <Switch
                     checked={voiceReading}
-                    onCheckedChange={setVoiceReading}
+                    onCheckedChange={handleVoiceReading}
+                    disabled={!speechSynthesis}
                   />
                 </div>
+              </div>
+
+              {/* Voice Speed Control */}
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <label className="text-sm text-text-secondary">Voice Speed</label>
+                  <span className="text-xs text-text-tertiary">{voiceSpeed[0]}x</span>
+                </div>
+                <Slider
+                  value={voiceSpeed}
+                  onValueChange={setVoiceSpeed}
+                  min={0.5}
+                  max={2.0}
+                  step={0.1}
+                  className="w-full"
+                  disabled={!speechSynthesis}
+                />
               </div>
               
               {voiceReading && (

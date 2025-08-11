@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { apiService } from '@/lib/api';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Play, 
   Pause, 
@@ -14,12 +16,16 @@ import {
   FileText,
   Mic,
   Download,
-  Settings
+  Settings,
+  Loader2
 } from 'lucide-react';
 
 interface PodcastPanelProps {
   documentId?: string;
   currentPage: number;
+  currentText?: string;
+  relatedSections?: string[];
+  insights?: string[];
 }
 
 interface AudioSection {
@@ -30,7 +36,13 @@ interface AudioSection {
   transcript: string;
 }
 
-export function PodcastPanel({ documentId, currentPage }: PodcastPanelProps) {
+export function PodcastPanel({ 
+  documentId, 
+  currentPage, 
+  currentText, 
+  relatedSections = [], 
+  insights = [] 
+}: PodcastPanelProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(180); // 3 minutes
@@ -40,8 +52,11 @@ export function PodcastPanel({ documentId, currentPage }: PodcastPanelProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [audioSections, setAudioSections] = useState<AudioSection[]>([]);
   const [currentSection, setCurrentSection] = useState(0);
+  const [podcastScript, setPodcastScript] = useState<string>('');
+  const [audioUrl, setAudioUrl] = useState<string>('');
 
   const audioRef = useRef<HTMLAudioElement>(null);
+  const { toast } = useToast();
 
   const mockSections: AudioSection[] = [
     {
@@ -68,21 +83,71 @@ export function PodcastPanel({ documentId, currentPage }: PodcastPanelProps) {
   ];
 
   const handleGenerateAudio = async () => {
-    if (!documentId) return;
+    if (!currentText) {
+      toast({
+        title: "No content available",
+        description: "Please navigate to a section with content to generate a podcast.",
+        variant: "destructive"
+      });
+      return;
+    }
     
     setIsGenerating(true);
-    
-    // Simulate audio generation delay
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    setAudioSections(mockSections);
-    setDuration(mockSections.reduce((acc, section) => acc + section.duration, 0));
-    setIsGenerating(false);
+    try {
+      // Generate podcast using backend API
+      const result = await apiService.generatePodcast(
+        currentText,
+        relatedSections,
+        insights
+      );
+      
+      setPodcastScript(result.script);
+      setAudioUrl(result.audio_url);
+      
+      // Create audio sections from the generated content
+      const generatedSection: AudioSection = {
+        id: '1',
+        title: 'AI-Generated Summary',
+        duration: 180, // Estimated duration
+        type: 'summary',
+        transcript: result.script
+      };
+      
+      setAudioSections([generatedSection]);
+      setDuration(180);
+      
+      toast({
+        title: "Podcast generated",
+        description: "Your AI-narrated summary is ready to play."
+      });
+      
+    } catch (error) {
+      console.error('Failed to generate podcast:', error);
+      toast({
+        title: "Podcast generation failed",
+        description: "Unable to generate audio. Please try again.",
+        variant: "destructive"
+      });
+      // Fallback to mock data
+      setAudioSections(mockSections);
+      setDuration(mockSections.reduce((acc, section) => acc + section.duration, 0));
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handlePlayPause = () => {
     if (audioSections.length === 0) {
       handleGenerateAudio();
+      return;
+    }
+    
+    if (!audioUrl) {
+      toast({
+        title: "No audio available",
+        description: "Please generate the podcast first.",
+        variant: "destructive"
+      });
       return;
     }
     
@@ -92,7 +157,19 @@ export function PodcastPanel({ documentId, currentPage }: PodcastPanelProps) {
       if (isPlaying) {
         audioRef.current.pause();
       } else {
-        audioRef.current.play();
+        // Set the audio source if not already set
+        if (audioRef.current.src !== audioUrl) {
+          audioRef.current.src = audioUrl;
+        }
+        audioRef.current.play().catch(error => {
+          console.error('Error playing audio:', error);
+          toast({
+            title: "Playback failed",
+            description: "Unable to play audio. Please try again.",
+            variant: "destructive"
+          });
+          setIsPlaying(false);
+        });
       }
     }
   };
