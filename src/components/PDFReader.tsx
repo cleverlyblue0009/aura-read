@@ -68,6 +68,13 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
   const [readingStartTime, setReadingStartTime] = useState<number>(Date.now());
   const [isActivelyReading, setIsActivelyReading] = useState(true);
   const [totalPages, setTotalPages] = useState(30); // Will be updated from PDF
+  
+  // Ensure total pages update when Adobe viewer emits a large page number
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setTotalPages(currentPage);
+    }
+  }, [currentPage, totalPages]);
   const { toast } = useToast();
 
   // Reading progress tracking
@@ -292,6 +299,8 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
             />
           </div>
         )}
+        {/* close header top row wrapper */}
+        </div>
       </header>
 
       <div className="flex flex-1 min-h-0">
@@ -311,7 +320,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
               )}
               
               {/* Related Sections */}
-              <div className="border-t border-border-subtle max-h-80">
+              <div className="border-t border-border-subtle h-80 overflow-hidden">
                 <HighlightPanel 
                   highlights={highlights}
                   onHighlightClick={(highlight) => setCurrentPage(highlight.page)}
@@ -324,21 +333,27 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
         {/* Main PDF Viewer */}
         <main className="flex-1 relative">
           {currentDocument ? (
-            <AdobePDFViewer
-              documentUrl={currentDocument.url}
-              documentName={currentDocument.name}
-              onPageChange={setCurrentPage}
-              onTextSelection={(text, page) => {
-                console.log('Text selected:', text, 'on page:', page);
-                setSelectedText(text);
-                setCurrentPage(page);
-                // Automatically generate insights for selected text
-                if (text.length > 50) {
-                  generateInsightsForText(text);
-                }
-              }}
-              clientId={import.meta.env.VITE_ADOBE_CLIENT_ID}
-            />
+            (typeof window !== 'undefined' && import.meta.env.VITE_ADOBE_CLIENT_ID) ? (
+              <AdobePDFViewer
+                documentUrl={currentDocument.url}
+                documentName={currentDocument.name}
+                onPageChange={setCurrentPage}
+                onTextSelection={(text, page) => {
+                  console.log('Text selected:', text, 'on page:', page);
+                  setSelectedText(text);
+                  setCurrentPage(page);
+                  if (text.length > 50) {
+                    generateInsightsForText(text);
+                  }
+                }}
+                clientId={import.meta.env.VITE_ADOBE_CLIENT_ID}
+              />
+            ) : (
+              <FallbackPDFViewer
+                documentUrl={currentDocument.url}
+                documentName={currentDocument.name}
+              />
+            )
           ) : (
             <div className="flex items-center justify-center h-full">
               <div className="text-center space-y-4">

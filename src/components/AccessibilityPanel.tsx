@@ -79,12 +79,14 @@ export function AccessibilityPanel({
   ];
 
   const languages = [
-    { code: 'en', label: 'English', flag: '🇺🇸' },
-    { code: 'es', label: 'Spanish', flag: '🇪🇸' },
-    { code: 'fr', label: 'French', flag: '🇫🇷' },
-    { code: 'de', label: 'German', flag: '🇩🇪' },
-    { code: 'zh', label: 'Chinese', flag: '🇨🇳' }
+    { code: 'en', label: 'English', flag: '🇺🇸', ssml: 'en-US' },
+    { code: 'es', label: 'Spanish', flag: '🇪🇸', ssml: 'es-ES' },
+    { code: 'fr', label: 'French', flag: '🇫🇷', ssml: 'fr-FR' },
+    { code: 'de', label: 'German', flag: '🇩🇪', ssml: 'de-DE' },
+    { code: 'zh', label: 'Chinese', flag: '🇨🇳', ssml: 'zh-CN' }
   ];
+
+  const [selectedLanguage, setSelectedLanguage] = useState<'en'|'es'|'fr'|'de'|'zh'>('en');
 
   const handleVoiceReading = () => {
     if (!speechSynthesis) {
@@ -116,6 +118,9 @@ export function AccessibilityPanel({
       utterance.rate = voiceSpeed[0];
       utterance.pitch = 1.0;
       utterance.volume = 1.0;
+      // Set language voice if available
+      const lang = languages.find(l => l.code === selectedLanguage)?.ssml || 'en-US';
+      utterance.lang = lang;
       
       utterance.onstart = () => {
         setVoiceReading(true);
@@ -339,13 +344,14 @@ export function AccessibilityPanel({
               {languages.map(lang => (
                 <Button
                   key={lang.code}
-                  variant="ghost"
+                  variant={selectedLanguage === lang.code ? 'default' : 'ghost'}
                   size="sm"
                   className="w-full justify-start gap-2"
+                  onClick={() => setSelectedLanguage(lang.code as any)}
                 >
                   <span>{lang.flag}</span>
                   <span>{lang.label}</span>
-                  {lang.code === 'en' && (
+                  {selectedLanguage === lang.code && (
                     <Badge variant="secondary" className="ml-auto text-xs">
                       Active
                     </Badge>
