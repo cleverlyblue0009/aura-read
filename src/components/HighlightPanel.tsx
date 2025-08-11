@@ -200,128 +200,130 @@ export function HighlightPanel({ highlights, onHighlightClick }: HighlightPanelP
       </div>
 
       {/* Highlights List */}
-      <ScrollArea className="flex-1">
-        <div className="p-4 space-y-3">
-          {filteredHighlights.length > 0 ? (
-            filteredHighlights.map((highlight) => (
-              <div
-                key={highlight.id}
-                className={`
-                  p-3 rounded-lg border-l-4 cursor-pointer transition-all
-                  ${getColorClasses(highlight.color)}
-                  hover:shadow-md hover:scale-[1.01]
-                `}
-                onClick={() => onHighlightClick(highlight)}
-              >
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs">
-                      Page {highlight.page}
-                    </Badge>
-                    <div className="flex items-center gap-1">
-                      <div
-                        className={`w-2 h-2 rounded-full ${
-                          highlight.relevanceScore >= 0.9 ? 'bg-green-500' :
-                          highlight.relevanceScore >= 0.8 ? 'bg-yellow-500' : 'bg-orange-500'
-                        }`}
-                      />
-                      <span className="text-xs text-text-tertiary">
-                        {Math.round(highlight.relevanceScore * 100)}%
-                      </span>
+      <div className="flex-1 overflow-hidden">
+        <ScrollArea className="h-full">
+          <div className="p-4 space-y-3">
+            {filteredHighlights.length > 0 ? (
+              filteredHighlights.map((highlight) => (
+                <div
+                  key={highlight.id}
+                  className={`
+                    p-3 rounded-lg border-l-4 cursor-pointer transition-all group
+                    ${getColorClasses(highlight.color)}
+                    hover:shadow-md hover:scale-[1.01]
+                  `}
+                  onClick={() => onHighlightClick(highlight)}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        Page {highlight.page}
+                      </Badge>
+                      <div className="flex items-center gap-1">
+                        <div
+                          className={`w-2 h-2 rounded-full ${
+                            highlight.relevanceScore >= 0.9 ? 'bg-green-500' :
+                            highlight.relevanceScore >= 0.8 ? 'bg-yellow-500' : 'bg-orange-500'
+                          }`}
+                        />
+                        <span className="text-xs text-text-tertiary">
+                          {Math.round(highlight.relevanceScore * 100)}%
+                        </span>
+                      </div>
                     </div>
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <MoreVertical className="h-3 w-3" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigator.clipboard?.writeText(highlight.text);
+                          }}
+                        >
+                          <Copy className="h-4 w-4 mr-2" />
+                          Copy Text
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onHighlightClick(highlight);
+                          }}
+                        >
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          Go to Page
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Would remove highlight
+                          }}
+                          className="text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Remove
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
 
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <MoreVertical className="h-3 w-3" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigator.clipboard?.writeText(highlight.text);
-                        }}
-                      >
-                        <Copy className="h-4 w-4 mr-2" />
-                        Copy Text
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onHighlightClick(highlight);
-                        }}
-                      >
-                        <ExternalLink className="h-4 w-4 mr-2" />
-                        Go to Page
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Would remove highlight
-                        }}
-                        className="text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Remove
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <p className="text-sm text-text-primary mb-2 leading-relaxed">
+                    "{highlight.text}"
+                  </p>
+
+                  <p className="text-xs text-text-secondary">
+                    {highlight.explanation}
+                  </p>
                 </div>
-
-                <p className="text-sm text-text-primary mb-2 leading-relaxed">
-                  "{highlight.text}"
-                </p>
-
-                <p className="text-xs text-text-secondary">
-                  {highlight.explanation}
-                </p>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                {highlights.length === 0 ? (
+                  <>
+                    <Highlighter className="h-12 w-12 text-text-tertiary mx-auto mb-3" />
+                    <p className="text-sm text-text-secondary mb-1">
+                      No highlights yet
+                    </p>
+                    <p className="text-xs text-text-tertiary">
+                      Select text in the PDF to create highlights
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Search className="h-12 w-12 text-text-tertiary mx-auto mb-3" />
+                    <p className="text-sm text-text-secondary mb-1">
+                      No highlights match your search
+                    </p>
+                    <p className="text-xs text-text-tertiary">
+                      Try adjusting your search terms or filters
+                    </p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSearchTerm('');
+                        setFilterColor('all');
+                      }}
+                      className="mt-2"
+                    >
+                      Clear Filters
+                    </Button>
+                  </>
+                )}
               </div>
-            ))
-          ) : (
-            <div className="text-center py-8">
-              {highlights.length === 0 ? (
-                <>
-                  <Highlighter className="h-12 w-12 text-text-tertiary mx-auto mb-3" />
-                  <p className="text-sm text-text-secondary mb-1">
-                    No highlights yet
-                  </p>
-                  <p className="text-xs text-text-tertiary">
-                    Select text in the PDF to create highlights
-                  </p>
-                </>
-              ) : (
-                <>
-                  <Search className="h-12 w-12 text-text-tertiary mx-auto mb-3" />
-                  <p className="text-sm text-text-secondary mb-1">
-                    No highlights match your search
-                  </p>
-                  <p className="text-xs text-text-tertiary">
-                    Try adjusting your search terms or filters
-                  </p>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setSearchTerm('');
-                      setFilterColor('all');
-                    }}
-                    className="mt-2"
-                  >
-                    Clear Filters
-                  </Button>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      </ScrollArea>
+            )}
+          </div>
+        </ScrollArea>
+      </div>
 
       {/* Summary Stats */}
       {highlights.length > 0 && (

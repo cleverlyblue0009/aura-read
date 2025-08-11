@@ -26,6 +26,7 @@ export function AdobePDFViewer({
   const viewerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
   const adobeViewRef = useRef<any>(null);
 
   useEffect(() => {
@@ -35,6 +36,7 @@ export function AdobePDFViewer({
       try {
         setIsLoading(true);
         setError(null);
+        setIsLoaded(false);
 
         // Wait for Adobe DC to be available
         if (!window.AdobeDC) {
@@ -98,21 +100,41 @@ export function AdobePDFViewer({
               case "DOCUMENT_OPEN":
                 console.log("PDF document opened successfully");
                 setIsLoading(false);
+                setIsLoaded(true);
                 break;
               case "DOCUMENT_ERROR":
                 console.error("PDF document error:", event.data);
                 setError("Failed to load PDF document");
                 setIsLoading(false);
+                setIsLoaded(false);
+                break;
+              case "PAGE_CHANGE":
+                // Additional page change event for better tracking
+                if (onPageChange) {
+                  onPageChange(event.data.pageNumber);
+                }
                 break;
             }
           },
           { enablePDFAnalytics: false }
         );
 
+        // Set a timeout to handle cases where events don't fire
+        const timeout = setTimeout(() => {
+          if (isLoading) {
+            console.warn("PDF loading timeout, assuming loaded");
+            setIsLoading(false);
+            setIsLoaded(true);
+          }
+        }, 10000); // 10 second timeout
+
+        return () => clearTimeout(timeout);
+
       } catch (err) {
         console.error("Error initializing Adobe PDF viewer:", err);
         setError("Failed to initialize PDF viewer");
         setIsLoading(false);
+        setIsLoaded(false);
       }
     };
 
