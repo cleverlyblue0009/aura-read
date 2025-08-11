@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
+import { apiService, DocumentInfo } from '@/lib/api';
 import { 
   Upload, 
   Brain, 
@@ -12,11 +14,12 @@ import {
   BookOpen,
   Accessibility,
   Palette,
-  Volume2
+  Volume2,
+  Loader2
 } from 'lucide-react';
 
 interface LandingPageProps {
-  onStart: (files: File[], persona: string, jobToBeDone: string) => void;
+  onStart: (documents: DocumentInfo[], persona: string, jobToBeDone: string) => void;
   onFeatureDemo: (feature: string) => void;
 }
 
@@ -25,6 +28,8 @@ export function LandingPage({ onStart, onFeatureDemo }: LandingPageProps) {
   const [persona, setPersona] = useState('');
   const [jobToBeDone, setJobToBeDone] = useState('');
   const [dragActive, setDragActive] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const { toast } = useToast();
 
   const handleFileUpload = (files: FileList) => {
     const pdfFiles = Array.from(files).filter(file => file.type === 'application/pdf');
@@ -39,9 +44,44 @@ export function LandingPage({ onStart, onFeatureDemo }: LandingPageProps) {
     }
   };
 
-  const handleStart = () => {
-    if (selectedFiles.length > 0) {
-      onStart(selectedFiles, persona, jobToBeDone);
+  const handleStart = async () => {
+    if (selectedFiles.length === 0) {
+      toast({
+        title: "No files selected",
+        description: "Please upload at least one PDF file to continue.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!persona.trim() || !jobToBeDone.trim()) {
+      toast({
+        title: "Missing information",
+        description: "Please provide both your role and what you want to accomplish.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const uploadedDocuments = await apiService.uploadPDFs(selectedFiles);
+      
+      toast({
+        title: "Upload successful",
+        description: `Successfully uploaded ${uploadedDocuments.length} document(s).`
+      });
+      
+      onStart(uploadedDocuments, persona, jobToBeDone);
+    } catch (error) {
+      console.error('Upload failed:', error);
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload and process PDFs. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -210,12 +250,21 @@ export function LandingPage({ onStart, onFeatureDemo }: LandingPageProps) {
 
               <Button 
                 onClick={handleStart}
-                disabled={selectedFiles.length === 0}
+                disabled={selectedFiles.length === 0 || isUploading}
                 size="lg"
                 className="w-full gap-3 h-16 text-xl font-bold shadow-xl hover:shadow-2xl transition-all duration-300 bg-gradient-primary hover:bg-gradient-primary/90"
               >
-                <BookOpen className="h-7 w-7" />
-                Start Intelligent Reading
+                {isUploading ? (
+                  <>
+                    <Loader2 className="h-7 w-7 animate-spin" />
+                    Processing PDFs...
+                  </>
+                ) : (
+                  <>
+                    <BookOpen className="h-7 w-7" />
+                    Start Intelligent Reading
+                  </>
+                )}
               </Button>
             </CardContent>
           </Card>

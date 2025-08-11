@@ -1,13 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { DocumentOutline } from './DocumentOutline';
 import { FloatingTools } from './FloatingTools';
-import { PDFViewer } from './PDFViewer';
+import { AdobePDFViewer, FallbackPDFViewer } from './AdobePDFViewer';
 import { ThemeToggle } from './ThemeToggle';
 import { AccessibilityPanel } from './AccessibilityPanel';
 import { InsightsPanel } from './InsightsPanel';
 import { PodcastPanel } from './PodcastPanel';
 import { HighlightPanel } from './HighlightPanel';
+import { TextSimplifier } from './TextSimplifier';
+import { ReadingProgressBar } from './ReadingProgressBar';
+import { CopyDownloadPanel } from './CopyDownloadPanel';
+import { useReadingProgress } from '@/hooks/useReadingProgress';
+import { apiService, RelatedSection } from '@/lib/api';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Menu, 
   Upload, 
@@ -54,7 +60,23 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
   const [currentPage, setCurrentPage] = useState(1);
   const [zoom, setZoom] = useState(1.0);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
-  const [activeRightPanel, setActiveRightPanel] = useState<'insights' | 'podcast' | 'accessibility' | 'simplifier' | null>('insights');
+  const [activeRightPanel, setActiveRightPanel] = useState<'insights' | 'podcast' | 'accessibility' | 'simplifier' | 'export' | null>('insights');
+  const [selectedText, setSelectedText] = useState<string>('');
+  const [currentInsights, setCurrentInsights] = useState<Array<{ type: string; content: string }>>([]);
+  const [relatedSections, setRelatedSections] = useState<RelatedSection[]>([]);
+  const [isLoadingRelated, setIsLoadingRelated] = useState(false);
+  const [readingStartTime, setReadingStartTime] = useState<number>(Date.now());
+  const [isActivelyReading, setIsActivelyReading] = useState(true);
+  const [totalPages, setTotalPages] = useState(30); // Will be updated from PDF
+  const { toast } = useToast();
+
+  // Reading progress tracking
+  const { getReadingStats, formatTime } = useReadingProgress({
+    documentId: currentDocument?.id,
+    currentPage,
+    totalPages,
+    isReading: isActivelyReading
+  });
 
   // Mock document for demo
   const mockDocument: PDFDocument = {
@@ -80,10 +102,97 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
     ]
   };
 
-  // Initialize with mock document
-  if (!currentDocument) {
-    setCurrentDocument(mockDocument);
-  }
+  // Initialize with first document from props or mock document
+  useEffect(() => {
+    if (documents && documents.length > 0 && !currentDocument) {
+      setCurrentDocument(documents[0]);
+    } else if (!currentDocument && !documents) {
+      setCurrentDocument(mockDocument);
+    }
+  }, [documents, currentDocument]);
+
+  // Load related sections when page or document changes
+  useEffect(() => {
+    if (currentDocument && persona && jobToBeDone) {
+      loadRelatedSections();
+    }
+  }, [currentDocument, currentPage, persona, jobToBeDone]);
+
+  const loadRelatedSections = async () => {
+    if (!currentDocument || !persona || !jobToBeDone) return;
+    
+    setIsLoadingRelated(true);
+    try {
+      const documentIds = documents ? documents.map(d => d.id) : [currentDocument.id];
+      const currentSection = getCurrentSectionTitle();
+      
+      const related = await apiService.getRelatedSections(
+        documentIds,
+        currentPage,
+        currentSection,
+        persona,
+        jobToBeDone
+      );
+      
+      setRelatedSections(related);
+      
+      // Convert to highlights for display
+      const newHighlights: Highlight[] = related.slice(0, 3).map((section, index) => ({
+        id: `related-${section.page_number}-${index}`,
+        text: section.section_title,
+        page: section.page_number,
+        color: index === 0 ? 'primary' : index === 1 ? 'secondary' : 'tertiary',
+        relevanceScore: section.relevance_score,
+        explanation: section.explanation
+      }));
+      
+      setHighlights(newHighlights);
+      
+    } catch (error) {
+      console.error('Failed to load related sections:', error);
+      toast({
+        title: "Failed to load related content",
+        description: "Unable to find related sections. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoadingRelated(false);
+    }
+  };
+
+  const getCurrentSectionTitle = (): string => {
+    if (!currentDocument) return "";
+    
+    // Find the section title for the current page
+    const currentOutlineItem = currentDocument.outline
+      .filter(item => item.page <= currentPage)
+      .sort((a, b) => b.page - a.page)[0];
+    
+    return currentOutlineItem?.title || "";
+  };
+
+  const generateInsightsForText = async (text: string) => {
+    if (!persona || !jobToBeDone) return;
+    
+    try {
+      const insights = await apiService.generateInsights(
+        text,
+        persona,
+        jobToBeDone,
+        currentDocument?.id
+      );
+      
+      setCurrentInsights(insights);
+      
+      // Auto-switch to insights panel if not already there
+      if (activeRightPanel !== 'insights') {
+        setActiveRightPanel('insights');
+      }
+      
+    } catch (error) {
+      console.error('Failed to generate insights for selected text:', error);
+    }
+  };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -112,36 +221,37 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
-      <header className="flex items-center justify-between px-8 py-5 border-b border-border-subtle bg-surface-elevated/95 backdrop-blur-md shadow-sm">
-        <div className="flex items-center gap-6">
-          {onBack && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onBack}
-              className="gap-2 hover:bg-surface-hover"
-            >
-              ←
-              Back
-            </Button>
-          )}
-          
-          <div className="flex items-center gap-4">
-            <div className="h-10 w-10 bg-brand-primary/10 rounded-lg flex items-center justify-center">
-              <BookOpen className="h-6 w-6 text-brand-primary" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-text-primary">DocuSense</h1>
-              {persona && (
-                <p className="text-sm text-text-secondary font-medium">
-                  {persona} • {jobToBeDone}
-                </p>
-              )}
+      <header className="border-b border-border-subtle bg-surface-elevated/95 backdrop-blur-md shadow-sm">
+        <div className="flex items-center justify-between px-8 py-5">
+          <div className="flex items-center gap-6">
+            {onBack && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onBack}
+                className="gap-2 hover:bg-surface-hover"
+              >
+                ←
+                Back
+              </Button>
+            )}
+            
+            <div className="flex items-center gap-4">
+              <div className="h-10 w-10 bg-brand-primary/10 rounded-lg flex items-center justify-center">
+                <BookOpen className="h-6 w-6 text-brand-primary" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-text-primary">DocuSense</h1>
+                {persona && (
+                  <p className="text-sm text-text-secondary font-medium">
+                    {persona} • {jobToBeDone}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3">
           <Button
             variant="ghost"
             size="sm"
@@ -168,33 +278,66 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
           
           <ThemeToggle />
         </div>
+        
+        {/* Reading Progress Bar */}
+        {currentDocument && (
+          <div className="px-8 pb-4">
+            <ReadingProgressBar
+              currentPage={currentPage}
+              totalPages={totalPages}
+              timeSpent={getReadingStats().timeSpent}
+              estimatedRemaining={getReadingStats().remainingTime}
+              progressPercentage={getReadingStats().progressPercentage}
+              formatTime={formatTime}
+            />
+          </div>
+        )}
       </header>
 
       <div className="flex flex-1 min-h-0">
         {/* Left Sidebar - Outline & Navigation */}
         {leftSidebarOpen && (
           <aside className="w-80 bg-surface-elevated/50 border-r border-border-subtle flex flex-col animate-fade-in backdrop-blur-sm">
-            {currentDocument && (
-              <DocumentOutline
-                outline={currentDocument.outline}
-                currentPage={currentPage}
-                onItemClick={handleOutlineClick}
-              />
-            )}
+            <div className="flex-1 overflow-hidden flex flex-col">
+              {/* Document Outline */}
+              {currentDocument && (
+                <div className="flex-1">
+                  <DocumentOutline
+                    outline={currentDocument.outline}
+                    currentPage={currentPage}
+                    onItemClick={handleOutlineClick}
+                  />
+                </div>
+              )}
+              
+              {/* Related Sections */}
+              <div className="border-t border-border-subtle max-h-80">
+                <HighlightPanel 
+                  highlights={highlights}
+                  onHighlightClick={(highlight) => setCurrentPage(highlight.page)}
+                />
+              </div>
+            </div>
           </aside>
         )}
 
         {/* Main PDF Viewer */}
         <main className="flex-1 relative">
           {currentDocument ? (
-            <PDFViewer
-              document={currentDocument}
-              currentPage={currentPage}
-              zoom={zoom}
+            <AdobePDFViewer
+              documentUrl={currentDocument.url}
+              documentName={currentDocument.name}
               onPageChange={setCurrentPage}
-              onZoomChange={setZoom}
-              highlights={highlights}
-              onHighlight={handleHighlight}
+              onTextSelection={(text, page) => {
+                console.log('Text selected:', text, 'on page:', page);
+                setSelectedText(text);
+                setCurrentPage(page);
+                // Automatically generate insights for selected text
+                if (text.length > 50) {
+                  generateInsightsForText(text);
+                }
+              }}
+              clientId={import.meta.env.VITE_ADOBE_CLIENT_ID}
             />
           ) : (
             <div className="flex items-center justify-center h-full">
@@ -229,7 +372,8 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
                   { key: 'insights', label: 'Insights', icon: BookOpen },
                   { key: 'podcast', label: 'Podcast', icon: Settings },
                   { key: 'accessibility', label: 'Access', icon: Palette },
-                  { key: 'simplifier', label: 'Simplify', icon: Upload }
+                  { key: 'simplifier', label: 'Simplify', icon: Upload },
+                  { key: 'export', label: 'Export', icon: Upload }
                 ].map(({ key, label, icon: Icon }) => (
                   <Button
                     key={key}
@@ -251,6 +395,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
                   documentId={currentDocument?.id}
                   persona={persona}
                   jobToBeDone={jobToBeDone}
+                  currentText={selectedText || getCurrentSectionTitle()}
                 />
               )}
               
@@ -258,18 +403,32 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
                 <PodcastPanel 
                   documentId={currentDocument?.id}
                   currentPage={currentPage}
+                  currentText={selectedText || getCurrentSectionTitle()}
+                  relatedSections={relatedSections.map(r => r.section_title)}
+                  insights={currentInsights.map(i => i.content)}
                 />
               )}
               
               {activeRightPanel === 'accessibility' && <AccessibilityPanel />}
               
               {activeRightPanel === 'simplifier' && (
-                <div className="p-4">
-                  <h3 className="font-semibold text-text-primary mb-4">Text Simplifier</h3>
-                  <p className="text-sm text-text-secondary">
-                    Hover over complex words to see definitions and simpler alternatives.
-                  </p>
-                </div>
+                <TextSimplifier 
+                  originalText={selectedText || getCurrentSectionTitle()}
+                  onSimplifiedText={(text) => console.log('Simplified:', text)}
+                />
+              )}
+
+              {activeRightPanel === 'export' && (
+                <CopyDownloadPanel
+                  selectedText={selectedText}
+                  currentSection={getCurrentSectionTitle()}
+                  documentTitle={currentDocument?.name}
+                  insights={currentInsights}
+                  relatedSections={relatedSections.map(r => ({
+                    section_title: r.section_title,
+                    explanation: r.explanation
+                  }))}
+                />
               )}
             </div>
           </aside>

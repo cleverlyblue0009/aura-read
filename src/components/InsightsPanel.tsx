@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
+import { apiService, Insight as ApiInsight } from '@/lib/api';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Lightbulb, 
   Brain, 
@@ -17,7 +19,7 @@ import {
 
 interface Insight {
   id: string;
-  type: 'key-insight' | 'fact' | 'contradiction' | 'inspiration';
+  type: 'takeaway' | 'fact' | 'contradiction' | 'connection' | 'info' | 'error';
   title: string;
   content: string;
   relevance: number;
@@ -29,19 +31,21 @@ interface InsightsPanelProps {
   documentId?: string;
   persona?: string;
   jobToBeDone?: string;
+  currentText?: string;
 }
 
-export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: propJobToBeDone }: InsightsPanelProps) {
+export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: propJobToBeDone, currentText }: InsightsPanelProps) {
   const [persona, setPersona] = useState(propPersona || '');
   const [jobToBeDone, setJobToBeDone] = useState(propJobToBeDone || '');
   const [insights, setInsights] = useState<Insight[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const { toast } = useToast();
 
   // Mock insights data
   const mockInsights: Insight[] = [
     {
       id: '1',
-      type: 'key-insight',
+      type: 'takeaway',
       title: 'AI Accuracy Breakthrough',
       content: 'The study demonstrates that machine learning algorithms achieve 94% accuracy in diagnostic imaging, representing a significant improvement over traditional methods.',
       relevance: 0.95,
@@ -66,7 +70,7 @@ export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: p
     },
     {
       id: '4',
-      type: 'inspiration',
+      type: 'connection',
       title: 'Cross-Domain Application',
       content: 'The methodologies described could be adapted for other domains like autonomous vehicles or financial fraud detection.',
       relevance: 0.75,
@@ -75,27 +79,82 @@ export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: p
   ];
 
   const handleGenerateInsights = async () => {
-    if (!documentId || (!persona && !jobToBeDone)) return;
+    if (!currentText || !persona || !jobToBeDone) {
+      toast({
+        title: "Missing information",
+        description: "Please ensure there's content to analyze and persona/job are set.",
+        variant: "destructive"
+      });
+      return;
+    }
     
     setIsGenerating(true);
-    
-    // Simulate API call to Gemini 2.5 Flash
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    setInsights(mockInsights);
-    setIsGenerating(false);
+    try {
+      const apiInsights = await apiService.generateInsights(
+        currentText,
+        persona,
+        jobToBeDone,
+        documentId
+      );
+      
+      // Convert API insights to component format
+      const convertedInsights: Insight[] = apiInsights.map((insight, index) => ({
+        id: `insight-${Date.now()}-${index}`,
+        type: insight.type,
+        title: getInsightTitle(insight.type),
+        content: insight.content,
+        relevance: 0.8, // Default relevance
+        pageReference: undefined,
+        source: 'AI Analysis'
+      }));
+      
+      setInsights(convertedInsights);
+      
+      toast({
+        title: "Insights generated",
+        description: `Generated ${convertedInsights.length} insights for the current content.`
+      });
+      
+    } catch (error) {
+      console.error('Failed to generate insights:', error);
+      toast({
+        title: "Failed to generate insights",
+        description: "Unable to analyze content. Please try again.",
+        variant: "destructive"
+      });
+      // Fallback to mock data
+      setInsights(mockInsights);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const getInsightTitle = (type: string): string => {
+    switch (type) {
+      case 'takeaway': return 'Key Takeaway';
+      case 'fact': return 'Did You Know?';
+      case 'contradiction': return 'Counterpoint';
+      case 'connection': return 'Connection';
+      case 'info': return 'Information';
+      case 'error': return 'Error';
+      default: return 'Insight';
+    }
   };
 
   const getInsightIcon = (type: Insight['type']) => {
     switch (type) {
-      case 'key-insight':
+      case 'takeaway':
         return <Lightbulb className="h-4 w-4 text-yellow-500" />;
       case 'fact':
         return <Brain className="h-4 w-4 text-blue-500" />;
       case 'contradiction':
         return <AlertTriangle className="h-4 w-4 text-orange-500" />;
-      case 'inspiration':
+      case 'connection':
         return <Link2 className="h-4 w-4 text-purple-500" />;
+      case 'info':
+        return <Sparkles className="h-4 w-4 text-green-500" />;
+      case 'error':
+        return <AlertTriangle className="h-4 w-4 text-red-500" />;
     }
   };
 

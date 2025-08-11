@@ -1,73 +1,190 @@
-# Welcome to your Lovable project
+# DocuSense - Intelligent PDF Reading Application
 
-## Project info
+An advanced AI-powered PDF reading application that combines document intelligence, accessibility features, and LLM-powered insights for enhanced document comprehension.
 
-**URL**: https://lovable.dev/projects/92d56097-0b38-497a-aa1f-d7c305d834cd
+## 🚀 Features
 
-## How can I edit this code?
+### Core Features
+- **High-Fidelity PDF Rendering**: Adobe PDF Embed API for 100% fidelity PDF display
+- **Bulk PDF Upload**: Upload multiple PDFs for historical document analysis
+- **Document Intelligence**: AI-powered section highlighting and relevance ranking
+- **Smart Navigation**: Intelligent document outline with related section discovery
 
-There are several ways of editing your application.
+### Accessibility Features
+- **Universal Design**: Font size and color customization for dyslexia and color blindness
+- **Voice Reading**: Text-to-speech functionality for audio consumption
+- **Reading Progress**: Time tracking and progress estimation
+- **Text Simplification**: AI-powered difficulty adjustment
 
-**Use Lovable**
+### AI-Powered Features
+- **Insights Bulb**: LLM-generated key insights, facts, and connections
+- **Podcast Mode**: AI-narrated audio summaries with Azure TTS
+- **Term Definitions**: Hover-based complex term explanations
+- **Related Content**: Intelligent cross-document section recommendations
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/92d56097-0b38-497a-aa1f-d7c305d834cd) and start prompting.
+## 🏗️ Architecture
 
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```
+DocuSense/
+├── frontend/          # React + TypeScript frontend
+│   ├── src/
+│   │   ├── components/   # UI components
+│   │   ├── lib/         # API services
+│   │   └── pages/       # Application pages
+├── backend/           # Python FastAPI backend
+│   ├── app/
+│   │   ├── main.py           # FastAPI application
+│   │   ├── pdf_analyzer.py   # Round 1A PDF processing
+│   │   ├── document_intelligence.py  # Round 1B intelligence
+│   │   ├── llm_services.py   # Gemini integration
+│   │   └── tts_service.py    # Azure TTS integration
+│   └── requirements.txt
 ```
 
-**Edit a file directly in GitHub**
+## 🛠️ Setup Instructions
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Prerequisites
+- Node.js 18+ and npm/yarn
+- Python 3.9+
+- API Keys:
+  - Google Gemini API key
+  - Azure Speech Services key
+  - Adobe PDF Embed API client ID (optional)
 
-**Use GitHub Codespaces**
+### Backend Setup
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+1. **Navigate to backend directory**:
+   ```bash
+   cd backend
+   ```
 
-## What technologies are used for this project?
+2. **Install Python dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-This project is built with:
+3. **Configure environment variables**:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API keys
+   ```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+4. **Start the backend server**:
+   ```bash
+   python start.py
+   ```
 
-## How can I deploy this project?
+   The backend will be available at `http://localhost:8000`
 
-Simply open [Lovable](https://lovable.dev/projects/92d56097-0b38-497a-aa1f-d7c305d834cd) and click on Share -> Publish.
+### Frontend Setup
 
-## Can I connect a custom domain to my Lovable project?
+1. **Navigate to frontend directory** (project root):
+   ```bash
+   # Already in root directory
+   ```
 
-Yes, you can!
+2. **Install dependencies**:
+   ```bash
+   npm install
+   ```
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+3. **Configure environment variables**:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your configuration
+   ```
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+4. **Start the development server**:
+   ```bash
+   npm run dev
+   ```
+
+   The frontend will be available at `http://localhost:5173`
+
+## 🔑 Required API Keys
+
+### Gemini API Key
+1. Visit [Google AI Studio](https://aistudio.google.com/)
+2. Create a new API key
+3. Add to `.env` as `GEMINI_API_KEY`
+
+### Azure Speech Services
+1. Create an Azure account and Speech resource
+2. Get your subscription key and region
+3. Add to `.env` as `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION`
+
+### Adobe PDF Embed API (Optional)
+1. Visit [Adobe Developer Console](https://developer.adobe.com/)
+2. Create a new project and add PDF Embed API
+3. Get your client ID
+4. Add to `.env` as `VITE_ADOBE_CLIENT_ID`
+
+## 📖 Usage
+
+1. **Upload PDFs**: Drag and drop or select PDF files on the landing page
+2. **Set Context**: Define your role (persona) and what you want to accomplish
+3. **Start Reading**: The application will analyze documents and provide intelligent insights
+4. **Explore Features**:
+   - View related sections highlighted automatically
+   - Generate AI insights with the Insights Bulb
+   - Listen to podcast-style summaries
+   - Adjust accessibility settings
+   - Simplify text difficulty
+   - Get term definitions on hover
+
+## 🔧 Development
+
+### Backend Development
+- The backend uses FastAPI with automatic API documentation at `/docs`
+- PDF processing is handled by PyMuPDF (fitz)
+- Document intelligence uses TF-IDF and custom scoring algorithms
+- LLM integration uses Google's Gemini 2.0 Flash model
+
+### Frontend Development
+- Built with React 18, TypeScript, and Tailwind CSS
+- Uses Adobe PDF Embed API for high-fidelity rendering
+- Shadcn/ui components for consistent design
+- Real-time API integration with the backend
+
+### Testing the Application
+1. Start both backend and frontend servers
+2. Upload sample PDF documents
+3. Set a persona (e.g., "Researcher") and job (e.g., "Analyzing AI trends")
+4. Explore the intelligent features and AI-powered insights
+
+## 🚀 Production Deployment
+
+### Backend
+```bash
+# Install production dependencies
+pip install -r requirements.txt
+
+# Set production environment variables
+export GEMINI_API_KEY=your_key
+export AZURE_SPEECH_KEY=your_key
+export AZURE_SPEECH_REGION=your_region
+
+# Run with production ASGI server
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+### Frontend
+```bash
+# Build for production
+npm run build
+
+# Serve static files (use nginx, apache, or any static server)
+npm run preview
+```
+
+## 📝 API Documentation
+
+Once the backend is running, visit `http://localhost:8000/docs` for interactive API documentation.
+
+## 🤝 Contributing
+
+This is a hackathon project. For issues or improvements, please refer to the project documentation.
+
+## 📄 License
+
+This project is part of a hackathon submission and is provided as-is for demonstration purposes.
