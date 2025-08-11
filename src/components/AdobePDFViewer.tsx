@@ -26,6 +26,7 @@ export function AdobePDFViewer({
   const viewerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isReady, setIsReady] = useState(false);
   const adobeViewRef = useRef<any>(null);
 
   useEffect(() => {
@@ -35,6 +36,7 @@ export function AdobePDFViewer({
       try {
         setIsLoading(true);
         setError(null);
+        setIsReady(false);
 
         // Wait for Adobe DC to be available
         if (!window.AdobeDC) {
@@ -81,6 +83,7 @@ export function AdobePDFViewer({
         adobeDCView.registerCallback(
           window.AdobeDC.View.Enum.CallbackType.EVENT_LISTENER,
           (event: any) => {
+            console.log('Adobe PDF Event:', event.type, event.data);
             switch (event.type) {
               case "PAGE_VIEW":
                 if (onPageChange) {
@@ -96,23 +99,37 @@ export function AdobePDFViewer({
                 }
                 break;
               case "DOCUMENT_OPEN":
-                console.log("PDF document opened successfully");
+              case "APP_RENDERING_DONE":
+                console.log("PDF document loaded successfully");
                 setIsLoading(false);
+                setIsReady(true);
                 break;
               case "DOCUMENT_ERROR":
+              case "APP_RENDERING_FAILED":
                 console.error("PDF document error:", event.data);
                 setError("Failed to load PDF document");
                 setIsLoading(false);
+                setIsReady(false);
                 break;
             }
           },
           { enablePDFAnalytics: false }
         );
 
+        // Set a fallback timeout to hide loading animation
+        setTimeout(() => {
+          if (isLoading) {
+            console.log("Loading timeout reached, hiding loading animation");
+            setIsLoading(false);
+            setIsReady(true);
+          }
+        }, 10000); // 10 second timeout
+
       } catch (err) {
         console.error("Error initializing Adobe PDF viewer:", err);
         setError("Failed to initialize PDF viewer");
         setIsLoading(false);
+        setIsReady(false);
       }
     };
 
@@ -153,10 +170,13 @@ export function AdobePDFViewer({
   return (
     <div className="h-full relative bg-surface-elevated rounded-lg border border-border-subtle overflow-hidden">
       {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-surface-elevated/80 backdrop-blur-sm z-10">
-          <div className="flex items-center gap-3">
-            <Loader2 className="h-6 w-6 animate-spin text-brand-primary" />
-            <span className="text-text-secondary">Loading PDF...</span>
+        <div className="absolute inset-0 flex items-center justify-center bg-background/90 backdrop-blur-md z-50">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="h-8 w-8 animate-spin text-brand-primary" />
+            <div className="text-center">
+              <div className="text-lg font-medium text-text-primary">Loading PDF...</div>
+              <div className="text-sm text-text-secondary mt-1">Please wait while the document loads</div>
+            </div>
           </div>
         </div>
       )}

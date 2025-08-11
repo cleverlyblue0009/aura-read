@@ -78,36 +78,10 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
     isReading: isActivelyReading
   });
 
-  // Mock document for demo
-  const mockDocument: PDFDocument = {
-    id: 'demo-doc',
-    name: 'Artificial Intelligence in Healthcare - Research Paper.pdf',
-    url: '/demo-document.pdf',
-    outline: [
-      { id: '1', title: 'Abstract', level: 1, page: 1 },
-      { id: '2', title: 'Introduction', level: 1, page: 2 },
-      { id: '3', title: 'Background and Related Work', level: 1, page: 4 },
-      { id: '4', title: 'Machine Learning Applications', level: 2, page: 5 },
-      { id: '5', title: 'Deep Learning in Medical Imaging', level: 2, page: 7 },
-      { id: '6', title: 'Methodology', level: 1, page: 10 },
-      { id: '7', title: 'Data Collection and Preprocessing', level: 2, page: 11 },
-      { id: '8', title: 'Model Architecture', level: 2, page: 13 },
-      { id: '9', title: 'Results and Analysis', level: 1, page: 16 },
-      { id: '10', title: 'Clinical Trial Results', level: 2, page: 17 },
-      { id: '11', title: 'Performance Metrics', level: 2, page: 19 },
-      { id: '12', title: 'Discussion', level: 1, page: 22 },
-      { id: '13', title: 'Future Work and Limitations', level: 2, page: 24 },
-      { id: '14', title: 'Conclusion', level: 1, page: 26 },
-      { id: '15', title: 'References', level: 1, page: 28 }
-    ]
-  };
-
   // Initialize with first document from props or mock document
   useEffect(() => {
     if (documents && documents.length > 0 && !currentDocument) {
       setCurrentDocument(documents[0]);
-    } else if (!currentDocument && !documents) {
-      setCurrentDocument(mockDocument);
     }
   }, [documents, currentDocument]);
 
@@ -136,17 +110,19 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
       
       setRelatedSections(related);
       
-      // Convert to highlights for display
-      const newHighlights: Highlight[] = related.slice(0, 3).map((section, index) => ({
-        id: `related-${section.page_number}-${index}`,
-        text: section.section_title,
-        page: section.page_number,
-        color: index === 0 ? 'primary' : index === 1 ? 'secondary' : 'tertiary',
-        relevanceScore: section.relevance_score,
-        explanation: section.explanation
-      }));
-      
-      setHighlights(newHighlights);
+      // Convert to highlights for display - only if we have real data
+      if (related && related.length > 0) {
+        const newHighlights: Highlight[] = related.slice(0, 5).map((section, index) => ({
+          id: `related-${section.page_number}-${index}`,
+          text: section.section_title,
+          page: section.page_number,
+          color: ['primary', 'secondary', 'tertiary'][index % 3] as 'primary' | 'secondary' | 'tertiary',
+          relevanceScore: section.relevance_score,
+          explanation: section.explanation
+        }));
+        
+        setHighlights(newHighlights);
+      }
       
     } catch (error) {
       console.error('Failed to load related sections:', error);
@@ -155,6 +131,8 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
         description: "Unable to find related sections. Please try again.",
         variant: "destructive"
       });
+      // Clear highlights on error instead of using mock data
+      setHighlights([]);
     } finally {
       setIsLoadingRelated(false);
     }
@@ -396,6 +374,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
                   persona={persona}
                   jobToBeDone={jobToBeDone}
                   currentText={selectedText || getCurrentSectionTitle()}
+                  onPageNavigate={setCurrentPage}
                 />
               )}
               
