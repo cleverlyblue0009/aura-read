@@ -27,6 +27,8 @@ export function AdobePDFViewer({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const adobeViewRef = useRef<any>(null);
+  const hasMarkedLoadedRef = useRef<boolean>(false);
+  const safetyTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!documentUrl || !viewerRef.current) return;
@@ -35,32 +37,35 @@ export function AdobePDFViewer({
       try {
         setIsLoading(true);
         setError(null);
+        hasMarkedLoadedRef.current = false;
 
-        // Wait for Adobe DC to be available
-        if (!window.AdobeDC) {
-          await new Promise((resolve) => {
-            const checkAdobeDC = () => {
-              if (window.AdobeDC) {
-                resolve(true);
-              } else {
-                setTimeout(checkAdobeDC, 100);
-              }
-            };
-            checkAdobeDC();
-          });
-        }
+        // Wait for Adobe DC to be available (with timeout)
+        const waitForAdobe = new Promise<void>((resolve, reject) => {
+          const start = Date.now();
+          const maxWaitMs = 8000;
+          const check = () => {
+            if (window.AdobeDC) {
+              resolve();
+            } else if (Date.now() - start > maxWaitMs) {
+              reject(new Error('AdobeDC failed to load'));
+            } else {
+              setTimeout(check, 100);
+            }
+          };
+          check();
+        });
 
-        // Configure Adobe PDF Embed
+        await waitForAdobe;
+
         const adobeDCView = new window.AdobeDC.View({
-          clientId: clientId || "test", // Use provided client ID or fallback
+          clientId: clientId || 'test',
           divId: viewerRef.current.id
         });
 
         adobeViewRef.current = adobeDCView;
 
-        // PDF viewing configuration
         const viewerConfig = {
-          embedMode: "SIZED_CONTAINER",
+          embedMode: 'SIZED_CONTAINER',
           showAnnotationTools: true,
           showLeftHandPanel: false,
           showDownloadPDF: true,
@@ -69,39 +74,36 @@ export function AdobePDFViewer({
           enableFormFilling: false,
           showPageControls: true,
           dockPageControls: false
-        };
+        } as const;
 
-        // Load the PDF
-        adobeDCView.previewFile({
-          content: { location: { url: documentUrl } },
-          metaData: { fileName: documentName }
-        }, viewerConfig);
-
-        // Register event listeners
+        // Register event listeners BEFORE previewing file
         adobeDCView.registerCallback(
           window.AdobeDC.View.Enum.CallbackType.EVENT_LISTENER,
           (event: any) => {
             switch (event.type) {
-              case "PAGE_VIEW":
-                if (onPageChange) {
-                  onPageChange(event.data.pageNumber);
+              case 'PAGE_VIEW':
+                if (onPageChange) onPageChange(event.data.pageNumber);
+                if (!hasMarkedLoadedRef.current) {
+                  hasMarkedLoadedRef.current = true;
+                  setIsLoading(false);
                 }
                 break;
-              case "TEXT_SELECTION":
-                if (onTextSelection && event.data.selection) {
+              case 'TEXT_SELECTION':
+                if (onTextSelection && event.data?.selection) {
                   onTextSelection(
                     event.data.selection.text,
                     event.data.selection.pageNumber
                   );
                 }
                 break;
-              case "DOCUMENT_OPEN":
-                console.log("PDF document opened successfully");
-                setIsLoading(false);
+              case 'DOCUMENT_OPEN':
+                if (!hasMarkedLoadedRef.current) {
+                  hasMarkedLoadedRef.current = true;
+                  setIsLoading(false);
+                }
                 break;
-              case "DOCUMENT_ERROR":
-                console.error("PDF document error:", event.data);
-                setError("Failed to load PDF document");
+              case 'DOCUMENT_ERROR':
+                setError('Failed to load PDF document');
                 setIsLoading(false);
                 break;
             }
@@ -109,9 +111,37 @@ export function AdobePDFViewer({
           { enablePDFAnalytics: false }
         );
 
+        // Safety timeout to ensure overlay clears even if no events fire
+        if (safetyTimeoutRef.current) window.clearTimeout(safetyTimeoutRef.current);
+        safetyTimeoutRef.current = window.setTimeout(() => {
+          if (!hasMarkedLoadedRef.current) {
+            setIsLoading(false);
+          }
+        }, 5000);
+
+        // Load the PDF (await so we can clear loading when promise resolves)
+        await adobeDCView
+          .previewFile(
+            {
+              content: { location: { url: documentUrl } },
+              metaData: { fileName: documentName }
+            },
+            viewerConfig as any
+          )
+          .then(() => {
+            if (!hasMarkedLoadedRef.current) {
+              hasMarkedLoadedRef.current = true;
+              setIsLoading(false);
+            }
+          })
+          .catch((e: any) => {
+            console.error('Adobe previewFile error:', e);
+            setError('Failed to load PDF document');
+            setIsLoading(false);
+          });
       } catch (err) {
-        console.error("Error initializing Adobe PDF viewer:", err);
-        setError("Failed to initialize PDF viewer");
+        console.error('Error initializing Adobe PDF viewer:', err);
+        setError('Failed to initialize PDF viewer');
         setIsLoading(false);
       }
     };
@@ -120,11 +150,12 @@ export function AdobePDFViewer({
 
     // Cleanup
     return () => {
+      if (safetyTimeoutRef.current) window.clearTimeout(safetyTimeoutRef.current);
       if (adobeViewRef.current) {
         try {
           adobeViewRef.current.destroy();
         } catch (err) {
-          console.warn("Error destroying Adobe PDF viewer:", err);
+          console.warn('Error destroying Adobe PDF viewer:', err);
         }
       }
     };

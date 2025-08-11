@@ -54,9 +54,17 @@ export function PodcastPanel({
   const [currentSection, setCurrentSection] = useState(0);
   const [podcastScript, setPodcastScript] = useState<string>('');
   const [audioUrl, setAudioUrl] = useState<string>('');
+  const [speechSynth, setSpeechSynth] = useState<SpeechSynthesis | null>(null);
+  const speechUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      setSpeechSynth(window.speechSynthesis);
+    }
+  }, []);
 
   const mockSections: AudioSection[] = [
     {
@@ -102,7 +110,7 @@ export function PodcastPanel({
       );
       
       setPodcastScript(result.script);
-      setAudioUrl(result.audio_url);
+      setAudioUrl(result.audio_url || '');
       
       // Create audio sections from the generated content
       const generatedSection: AudioSection = {
@@ -132,6 +140,10 @@ export function PodcastPanel({
       setAudioSections(mockSections);
       setDuration(mockSections.reduce((acc, section) => acc + section.duration, 0));
     } finally {
+      // Ensure we have some script for TTS fallback
+      if (!audioUrl && !podcastScript && audioSections.length > 0) {
+        setPodcastScript(audioSections.map(s => s.transcript).join('\n\n'));
+      }
       setIsGenerating(false);
     }
   };
@@ -142,12 +154,27 @@ export function PodcastPanel({
       return;
     }
     
+    // If no server audio, try browser TTS fallback
     if (!audioUrl) {
-      toast({
-        title: "No audio available",
-        description: "Please generate the podcast first.",
-        variant: "destructive"
-      });
+      if (!speechSynth || !podcastScript) {
+        toast({
+          title: "No audio available",
+          description: "Please generate the podcast first.",
+          variant: "destructive"
+        });
+        return;
+      }
+      if (isPlaying) {
+        speechSynth.cancel();
+        setIsPlaying(false);
+      } else {
+        const utter = new SpeechSynthesisUtterance(podcastScript);
+        utter.rate = 1.0;
+        utter.onend = () => setIsPlaying(false);
+        speechUtteranceRef.current = utter;
+        setIsPlaying(true);
+        speechSynth.speak(utter);
+      }
       return;
     }
     
@@ -157,7 +184,6 @@ export function PodcastPanel({
       if (isPlaying) {
         audioRef.current.pause();
       } else {
-        // Set the audio source if not already set
         if (audioRef.current.src !== audioUrl) {
           audioRef.current.src = audioUrl;
         }
@@ -182,6 +208,9 @@ export function PodcastPanel({
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
+    }
+    if (speechSynth) {
+      speechSynth.cancel();
     }
   };
 
