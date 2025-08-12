@@ -105,21 +105,21 @@ export function DocumentOutline({ outline, currentPage, onItemClick }: DocumentO
   };
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="p-5 border-b border-border-subtle">
+    <div className="h-full flex flex-col" style={{ height: '100vh' }}>
+      <div className="p-5 border-b border-border-subtle flex-shrink-0">
         <h3 className="font-semibold text-lg text-text-primary mb-2">Document Outline</h3>
         <p className="text-sm text-text-secondary">
           {outline.length} sections • Currently on page {currentPage}
         </p>
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="p-2 space-y-1">
           {outline.map(item => renderOutlineItem(item))}
         </div>
       </ScrollArea>
 
-      <div className="p-5 border-t border-border-subtle bg-surface-elevated/30">
+      <div className="p-5 border-t border-border-subtle bg-surface-elevated/30 flex-shrink-0">
         <div className="text-sm text-text-secondary space-y-3">
           <div className="flex justify-between items-center">
             <span className="font-medium">Reading Progress</span>

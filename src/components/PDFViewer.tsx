@@ -12,6 +12,7 @@ import {
   Search
 } from 'lucide-react';
 import { PDFDocument, Highlight } from './PDFReader';
+import { useTermDefinitions } from './TermDefinitionTooltip';
 
 interface PDFViewerProps {
   document: PDFDocument;
@@ -211,15 +212,16 @@ export function PDFViewer({
       </div>
 
       {/* PDF Content Area */}
-      <div className="flex-1 overflow-auto relative">
+      <div className="flex-1 overflow-auto relative bg-pdf-background p-4" style={{ height: 'calc(100vh - 80px)' }}>
         <div 
-          className="pdf-canvas mx-auto my-8 relative"
+          className="pdf-canvas mx-auto relative shadow-lg rounded-lg"
           style={{ 
             transform: `scale(${zoom})`,
             transformOrigin: 'top center',
             minHeight: '11in',
             width: '8.5in',
-            backgroundColor: 'white'
+            backgroundColor: 'white',
+            marginBottom: `${zoom * 100}px` // Add bottom margin based on zoom
           }}
           onMouseUp={handleTextSelection}
         >
@@ -239,23 +241,7 @@ export function PDFViewer({
             </header>
 
             {currentPage === 1 && (
-              <section>
-                <h2 className="text-xl font-semibold mb-4">Abstract</h2>
-                <p className="text-sm leading-relaxed mb-4">
-                  This comprehensive study examines the implementation and impact of artificial intelligence 
-                  technologies in modern healthcare systems. Through extensive research and clinical trials, 
-                  we demonstrate that <span className="highlight-primary">machine learning algorithms achieve 
-                  94% accuracy in diagnostic imaging applications</span>, significantly improving patient 
-                  outcomes while reducing diagnostic time by up to 60%.
-                </p>
-                <p className="text-sm leading-relaxed">
-                  Our findings indicate that AI integration faces several challenges, including 
-                  <span className="highlight-secondary">data privacy concerns and regulatory compliance 
-                  requirements</span> that must be addressed for widespread adoption. However, the potential 
-                  benefits far outweigh these limitations, particularly in areas of early disease detection 
-                  and personalized treatment planning.
-                </p>
-              </section>
+              <AbstractSection />
             )}
 
             {currentPage === 2 && (
@@ -346,5 +332,42 @@ export function PDFViewer({
         </div>
       )}
     </div>
+  );
+}
+
+// Enhanced section components with term definitions
+function AbstractSection() {
+  const abstractText = `This comprehensive study examines the implementation and impact of artificial intelligence 
+  technologies in modern healthcare systems. Through extensive research and clinical trials, 
+  we demonstrate that machine learning algorithms achieve 94% accuracy in diagnostic imaging applications, 
+  significantly improving patient outcomes while reducing diagnostic time by up to 60%.`;
+  
+  const challengesText = `Our findings indicate that AI integration faces several challenges, including 
+  data privacy concerns and regulatory compliance requirements that must be addressed for widespread adoption. 
+  However, the potential benefits far outweigh these limitations, particularly in areas of early disease detection 
+  and personalized treatment planning.`;
+
+  const processedAbstract = useTermDefinitions(
+    abstractText, 
+    "Healthcare AI implementation research study", 
+    true
+  );
+  
+  const processedChallenges = useTermDefinitions(
+    challengesText, 
+    "AI implementation challenges in healthcare", 
+    true
+  );
+
+  return (
+    <section>
+      <h2 className="text-xl font-semibold mb-4">Abstract</h2>
+      <p className="text-sm leading-relaxed mb-4">
+        {processedAbstract}
+      </p>
+      <p className="text-sm leading-relaxed">
+        {processedChallenges}
+      </p>
+    </section>
   );
 }

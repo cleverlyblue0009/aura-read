@@ -284,8 +284,8 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
 
   return (
     <div className="h-screen flex flex-col bg-background">
-      {/* Header */}
-      <header className="border-b border-border-subtle bg-surface-elevated/95 backdrop-blur-md shadow-sm">
+      {/* Enhanced Header with animations */}
+      <header className="border-b border-border-subtle bg-surface-elevated/95 backdrop-blur-md shadow-sm animate-slide-in-top">
         <div className="flex items-center justify-between px-8 py-5">
           <div className="flex items-center gap-6">
             {onBack && (
@@ -300,14 +300,14 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
               </Button>
             )}
             
-            <div className="flex items-center gap-4">
-              <div className="h-10 w-10 bg-brand-primary/10 rounded-lg flex items-center justify-center">
-                <BookOpen className="h-6 w-6 text-brand-primary" />
+            <div className="flex items-center gap-4 animate-bounce-in stagger-1">
+              <div className="h-10 w-10 bg-brand-primary/10 rounded-lg flex items-center justify-center hover-lift glass">
+                <BookOpen className="h-6 w-6 text-brand-primary animate-float" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-text-primary">DocuSense</h1>
+                <h1 className="text-xl font-bold gradient-text">DocuSense</h1>
                 {persona && (
-                  <p className="text-sm text-text-secondary font-medium">
+                  <p className="text-sm text-text-secondary font-medium animate-slide-in-top stagger-2">
                     {persona} • {jobToBeDone}
                   </p>
                 )}
@@ -360,9 +360,9 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
       </header>
 
       <div className="flex flex-1 min-h-0">
-        {/* Left Sidebar - Outline & Navigation */}
+        {/* Enhanced Left Sidebar - Outline & Navigation */}
         {leftSidebarOpen && (
-          <aside className="w-80 bg-surface-elevated/50 border-r border-border-subtle flex flex-col animate-fade-in backdrop-blur-sm">
+          <aside className="w-80 bg-surface-elevated/50 border-r border-border-subtle flex flex-col animate-slide-in-left backdrop-blur-sm custom-scrollbar glass">
             <div className="flex-1 overflow-hidden flex flex-col">
               {/* Document Outline */}
               {currentDocument && (
@@ -434,9 +434,9 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
           />
         </main>
 
-        {/* Right Panel - Interactive Utilities */}
+        {/* Enhanced Right Panel - Interactive Utilities */}
         {rightPanelOpen && (
-          <aside className="w-96 bg-surface-elevated/50 border-l border-border-subtle flex flex-col animate-fade-in backdrop-blur-sm">
+          <aside className="w-96 bg-surface-elevated/50 border-l border-border-subtle flex flex-col animate-slide-in-right backdrop-blur-sm custom-scrollbar glass">
             <div className="p-5 border-b border-border-subtle">
               <div className="grid grid-cols-2 gap-2">
                 {[
