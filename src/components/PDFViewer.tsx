@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { 
@@ -36,12 +36,48 @@ export function PDFViewer({
   const [totalPages] = useState(30); // Mock total pages
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedText, setSelectedText] = useState('');
+  const [scrollPosition, setScrollPosition] = useState(0);
+  const [isScrolling, setIsScrolling] = useState(false);
+  
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const pdfContentRef = useRef<HTMLDivElement>(null);
 
   // Mock PDF rendering - in real implementation, would use Adobe PDF Embed API
   useEffect(() => {
     // Initialize Adobe PDF Embed API here
     console.log('Loading PDF:', document.url);
   }, [document.url]);
+
+  // Handle scroll events with debouncing
+  useEffect(() => {
+    const handleScroll = () => {
+      if (scrollContainerRef.current) {
+        setScrollPosition(scrollContainerRef.current.scrollTop);
+      }
+    };
+
+    const debouncedScroll = debounce(handleScroll, 16); // ~60fps
+    const container = scrollContainerRef.current;
+    
+    if (container) {
+      container.addEventListener('scroll', debouncedScroll);
+      return () => container.removeEventListener('scroll', debouncedScroll);
+    }
+  }, []);
+
+  // Smooth scroll to top when page changes
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      setIsScrolling(true);
+      scrollContainerRef.current.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+      
+      // Reset scrolling state after animation
+      setTimeout(() => setIsScrolling(false), 500);
+    }
+  }, [currentPage]);
 
   const handlePrevPage = () => {
     if (currentPage > 1) {
@@ -88,10 +124,23 @@ export function PDFViewer({
     window.getSelection()?.removeAllRanges();
   };
 
+  // Debounce utility function
+  const debounce = (func: Function, wait: number) => {
+    let timeout: NodeJS.Timeout;
+    return function executedFunction(...args: any[]) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  };
+
   return (
     <div className="h-full flex flex-col bg-pdf-background">
       {/* PDF Toolbar */}
-      <div className="flex items-center justify-between p-3 bg-surface-elevated border-b border-border-subtle">
+      <div className="flex items-center justify-between p-3 bg-surface-elevated border-b border-border-subtle flex-shrink-0">
         <div className="flex items-center gap-2">
           {/* Page Navigation */}
           <Button
@@ -211,123 +260,149 @@ export function PDFViewer({
         </div>
       </div>
 
-      {/* PDF Content Area */}
-      <div className="flex-1 overflow-auto relative bg-pdf-background p-4" style={{ height: 'calc(100vh - 80px)' }}>
-        <div 
-          className="pdf-canvas mx-auto relative shadow-lg rounded-lg"
-          style={{ 
-            transform: `scale(${zoom})`,
-            transformOrigin: 'top center',
-            minHeight: '11in',
-            width: '8.5in',
-            backgroundColor: 'white',
-            marginBottom: `${zoom * 100}px` // Add bottom margin based on zoom
-          }}
-          onMouseUp={handleTextSelection}
-        >
-          {/* Mock PDF Content */}
-          <div className="p-8 text-gray-900 space-y-6">
-            <header className="text-center border-b pb-6">
-              <h1 className="text-2xl font-bold mb-2">
-                Artificial Intelligence in Healthcare
-              </h1>
-              <p className="text-lg text-gray-600">
-                A Comprehensive Research Study
-              </p>
-              <div className="mt-4 text-sm text-gray-500">
-                <p>Dr. Sarah Johnson, PhD • Medical AI Research Institute</p>
-                <p>Published: November 2024 • Page {currentPage} of {totalPages}</p>
-              </div>
-            </header>
+      {/* Enhanced PDF Content Area with Proper Scrolling */}
+      <div 
+        ref={scrollContainerRef}
+        className="flex-1 overflow-auto relative bg-pdf-background"
+        style={{ 
+          height: 'calc(100vh - 80px)',
+          scrollBehavior: isScrolling ? 'smooth' : 'auto'
+        }}
+      >
+        {/* Content Container with Proper Spacing */}
+        <div className="min-h-full flex flex-col items-center p-4 pb-8">
+          <div 
+            ref={pdfContentRef}
+            className="pdf-canvas relative shadow-lg rounded-lg bg-white"
+            style={{ 
+              transform: `scale(${zoom})`,
+              transformOrigin: 'top center',
+              minHeight: '11in',
+              width: '8.5in',
+              marginBottom: `${Math.max(zoom * 100, 100)}px`, // Ensure minimum bottom margin
+              transition: 'transform 0.2s ease-in-out'
+            }}
+            onMouseUp={handleTextSelection}
+          >
+            {/* Mock PDF Content */}
+            <div className="p-8 text-gray-900 space-y-6">
+              <header className="text-center border-b pb-6">
+                <h1 className="text-2xl font-bold mb-2">
+                  Artificial Intelligence in Healthcare
+                </h1>
+                <p className="text-lg text-gray-600">
+                  A Comprehensive Research Study
+                </p>
+                <div className="mt-4 text-sm text-gray-500">
+                  <p>Dr. Sarah Johnson, PhD • Medical AI Research Institute</p>
+                  <p>Published: November 2024 • Page {currentPage} of {totalPages}</p>
+                </div>
+              </header>
 
-            {currentPage === 1 && (
-              <AbstractSection />
-            )}
+              {currentPage === 1 && (
+                <AbstractSection />
+              )}
 
-            {currentPage === 2 && (
-              <section>
-                <h2 className="text-xl font-semibold mb-4">Introduction</h2>
-                <p className="text-sm leading-relaxed mb-4">
-                  The healthcare industry stands at the precipice of a technological revolution. Artificial 
-                  intelligence, once confined to the realm of science fiction, now represents one of the most 
-                  promising avenues for improving patient care and medical outcomes.
-                </p>
-                <p className="text-sm leading-relaxed mb-4">
-                  <span className="highlight-tertiary">Integration with existing EHR systems requires 
-                  standardized protocols</span> to ensure seamless data flow and maintain interoperability 
-                  across different healthcare providers. This standardization is crucial for the success 
-                  of AI implementation at scale.
-                </p>
-                <p className="text-sm leading-relaxed">
-                  Current research focuses on three primary areas: diagnostic imaging, predictive analytics, 
-                  and personalized medicine. Each of these domains presents unique opportunities and challenges 
-                  that we will explore in detail throughout this paper.
-                </p>
-              </section>
-            )}
+              {currentPage === 2 && (
+                <section>
+                  <h2 className="text-xl font-semibold mb-4">Introduction</h2>
+                  <p className="text-sm leading-relaxed mb-4">
+                    The healthcare industry stands at the precipice of a technological revolution. Artificial 
+                    intelligence, once confined to the realm of science fiction, now represents one of the most 
+                    promising avenues for improving patient care and medical outcomes.
+                  </p>
+                  <p className="text-sm leading-relaxed mb-4">
+                    <span className="highlight-tertiary">Integration with existing EHR systems requires 
+                    standardized protocols</span> to ensure seamless data flow and maintain interoperability 
+                    across different healthcare providers. This standardization is crucial for the success 
+                    of AI implementation at scale.
+                  </p>
+                  <p className="text-sm leading-relaxed">
+                    Current research focuses on three primary areas: diagnostic imaging, predictive analytics, 
+                    and personalized medicine. Each of these domains presents unique opportunities and challenges 
+                    that we will explore in detail throughout this paper.
+                  </p>
+                </section>
+              )}
 
-            {currentPage > 2 && (
-              <section>
-                <h2 className="text-xl font-semibold mb-4">Chapter {currentPage - 1}</h2>
-                <p className="text-sm leading-relaxed mb-4">
-                  This section would contain the actual content from page {currentPage} of the research paper. 
-                  In a real implementation, this content would be rendered by the Adobe PDF Embed API with 
-                  full fidelity to the original document formatting.
-                </p>
-                <p className="text-sm leading-relaxed">
-                  The content would include proper typography, figures, charts, and all other elements 
-                  exactly as they appear in the original PDF document.
-                </p>
-              </section>
-            )}
+              {currentPage > 2 && (
+                <section>
+                  <h2 className="text-xl font-semibold mb-4">Chapter {currentPage - 1}</h2>
+                  <p className="text-sm leading-relaxed mb-4">
+                    This section would contain the actual content from page {currentPage} of the research paper. 
+                    In a real implementation, this content would be rendered by the Adobe PDF Embed API with 
+                    full fidelity to the original document formatting.
+                  </p>
+                  <p className="text-sm leading-relaxed mb-4">
+                    The content would include proper typography, figures, charts, and all other elements 
+                    exactly as they appear in the original PDF document. This ensures that users can read 
+                    the document exactly as intended by the authors.
+                  </p>
+                  <p className="text-sm leading-relaxed">
+                    Additional content would continue here, maintaining the same high-quality formatting 
+                    and readability standards throughout the document.
+                  </p>
+                </section>
+              )}
+            </div>
+
+            {/* Enhanced Highlight Overlays with Better Positioning */}
+            {highlights
+              .filter(h => h.page === currentPage)
+              .map((highlight, index) => (
+                <div
+                  key={highlight.id}
+                  className={`absolute highlight-${highlight.color} rounded-sm opacity-30 pointer-events-none transition-all duration-200`}
+                  style={{
+                    // Improved positioning with better distribution
+                    top: `${20 + (index * 15)}%`,
+                    left: '10%',
+                    right: '10%',
+                    height: '1.5em',
+                    zIndex: 10
+                  }}
+                  title={`${highlight.explanation} (${Math.round(highlight.relevanceScore * 100)}% relevant)`}
+                />
+              ))}
           </div>
+        </div>
 
-          {/* Highlight Overlays */}
-          {highlights
-            .filter(h => h.page === currentPage)
-            .map(highlight => (
-              <div
-                key={highlight.id}
-                className={`absolute highlight-${highlight.color} rounded-sm opacity-30 pointer-events-none`}
-                style={{
-                  // Position would be calculated based on text selection
-                  top: '20%',
-                  left: '10%',
-                  right: '10%',
-                  height: '1.5em'
-                }}
-                title={`${highlight.explanation} (${Math.round(highlight.relevanceScore * 100)}% relevant)`}
-              />
-            ))}
+        {/* Scroll Progress Indicator */}
+        <div className="fixed bottom-4 right-4 bg-surface-elevated rounded-full p-2 shadow-lg">
+          <div className="text-xs text-text-secondary">
+            {Math.round((scrollPosition / (scrollContainerRef.current?.scrollHeight || 1)) * 100)}%
+          </div>
         </div>
       </div>
 
-      {/* Selection Highlight Tools */}
+      {/* Enhanced Selection Highlight Tools */}
       {selectedText && (
-        <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 floating-tool p-3 animate-scale-in">
-          <p className="text-xs text-text-secondary mb-2">Highlight selected text:</p>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              onClick={() => handleHighlightText('primary')}
-              className="bg-highlight-primary text-gray-900 hover:bg-highlight-primary/80"
-            >
-              Yellow
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => handleHighlightText('secondary')}
-              className="bg-highlight-secondary text-gray-900 hover:bg-highlight-secondary/80"
-            >
-              Green
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => handleHighlightText('tertiary')}
-              className="bg-highlight-tertiary text-gray-900 hover:bg-highlight-tertiary/80"
-            >
-              Blue
-            </Button>
+        <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 floating-tool p-3 animate-scale-in z-50">
+          <div className="bg-surface-elevated rounded-lg shadow-lg border border-border-subtle p-3">
+            <p className="text-xs text-text-secondary mb-2">Highlight selected text:</p>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={() => handleHighlightText('primary')}
+                className="bg-highlight-primary text-gray-900 hover:bg-highlight-primary/80"
+              >
+                Yellow
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => handleHighlightText('secondary')}
+                className="bg-highlight-secondary text-gray-900 hover:bg-highlight-secondary/80"
+              >
+                Green
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => handleHighlightText('tertiary')}
+                className="bg-highlight-tertiary text-gray-900 hover:bg-highlight-tertiary/80"
+              >
+                Blue
+              </Button>
+            </div>
           </div>
         </div>
       )}

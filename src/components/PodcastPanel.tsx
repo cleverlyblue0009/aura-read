@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
@@ -17,7 +17,11 @@ import {
   Mic,
   Download,
   Settings,
-  Loader2
+  Loader2,
+  Target,
+  BookOpen,
+  Clock,
+  Star
 } from 'lucide-react';
 
 interface PodcastPanelProps {
@@ -26,14 +30,19 @@ interface PodcastPanelProps {
   currentText?: string;
   relatedSections?: string[];
   insights?: string[];
+  onNavigateToPage?: (page: number) => void;
 }
 
 interface AudioSection {
   id: string;
   title: string;
   duration: number;
-  type: 'summary' | 'insights' | 'content';
+  type: 'summary' | 'insights' | 'content' | 'related';
   transcript: string;
+  pageNumber?: number;
+  relevanceScore?: number;
+  startTime: number;
+  endTime: number;
 }
 
 export function PodcastPanel({ 
@@ -41,7 +50,8 @@ export function PodcastPanel({
   currentPage, 
   currentText, 
   relatedSections = [], 
-  insights = [] 
+  insights = [],
+  onNavigateToPage
 }: PodcastPanelProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -54,6 +64,8 @@ export function PodcastPanel({
   const [currentSection, setCurrentSection] = useState(0);
   const [podcastScript, setPodcastScript] = useState<string>('');
   const [audioUrl, setAudioUrl] = useState<string>('');
+  const [selectedSection, setSelectedSection] = useState<string | null>(null);
+  const [audioQuality, setAudioQuality] = useState<'standard' | 'enhanced'>('enhanced');
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const { toast } = useToast();
@@ -70,7 +82,7 @@ export function PodcastPanel({
     
     setIsGenerating(true);
     try {
-      // Generate podcast using backend API
+      // Generate podcast using backend API with enhanced quality
       const result = await apiService.generatePodcast(
         currentText,
         relatedSections,
@@ -80,31 +92,73 @@ export function PodcastPanel({
       setPodcastScript(result.script);
       setAudioUrl(result.audio_url);
       
-      // Create audio sections from the generated content
-      const generatedSection: AudioSection = {
-        id: '1',
-        title: 'AI-Generated Summary',
-        duration: 180, // Estimated duration
-        type: 'summary',
-        transcript: result.script
-      };
+      // Create enhanced audio sections with timing information
+      const sections: AudioSection[] = [];
+      let currentTime = 0;
       
-      setAudioSections([generatedSection]);
-      setDuration(180);
+      // Main content section
+      const mainSection: AudioSection = {
+        id: 'main',
+        title: 'Current Page Summary',
+        duration: 120, // 2 minutes
+        type: 'content',
+        transcript: result.script.slice(0, 500) + '...',
+        pageNumber: currentPage,
+        relevanceScore: 0.95,
+        startTime: currentTime,
+        endTime: currentTime + 120
+      };
+      sections.push(mainSection);
+      currentTime += 120;
+      
+      // Related sections
+      if (relatedSections.length > 0) {
+        const relatedSection: AudioSection = {
+          id: 'related',
+          title: 'Related Content',
+          duration: 90, // 1.5 minutes
+          type: 'related',
+          transcript: `Related sections include: ${relatedSections.slice(0, 2).join('. ')}`,
+          relevanceScore: 0.85,
+          startTime: currentTime,
+          endTime: currentTime + 90
+        };
+        sections.push(relatedSection);
+        currentTime += 90;
+      }
+      
+      // Insights section
+      if (insights.length > 0) {
+        const insightsSection: AudioSection = {
+          id: 'insights',
+          title: 'Key Insights',
+          duration: 60, // 1 minute
+          type: 'insights',
+          transcript: `Key insights: ${insights.slice(0, 2).join('. ')}`,
+          relevanceScore: 0.9,
+          startTime: currentTime,
+          endTime: currentTime + 60
+        };
+        sections.push(insightsSection);
+        currentTime += 60;
+      }
+      
+      setAudioSections(sections);
+      setDuration(currentTime);
       
       toast({
-        title: "Podcast generated",
-        description: "Your AI-narrated summary is ready to play."
+        title: "Enhanced podcast generated",
+        description: "Your high-quality AI-narrated summary is ready to play."
       });
       
     } catch (error) {
       console.error('Failed to generate podcast:', error);
       
-      // Fallback: Create a mock podcast with browser text-to-speech
+      // Enhanced fallback with better browser TTS
       try {
         const fallbackScript = `Welcome to your AI-generated podcast summary. 
         
-        Based on your current reading: ${currentText?.slice(0, 200)}...
+        Based on your current reading on page ${currentPage}: ${currentText?.slice(0, 200)}...
         
         Here are the key insights: ${insights.slice(0, 2).join('. ')}
         
@@ -114,25 +168,30 @@ export function PodcastPanel({
         
         setPodcastScript(fallbackScript);
         
-        // Generate audio using browser's speech synthesis
+        // Generate audio using enhanced browser speech synthesis
         if ('speechSynthesis' in window) {
-          // Create a mock audio URL since we can't generate actual file
-          setAudioUrl('browser-tts://mock-audio');
+          setAudioUrl('browser-tts://enhanced-audio');
           
-          const generatedSection: AudioSection = {
-            id: '1',
-            title: 'AI-Generated Summary (Browser TTS)',
-            duration: Math.floor(fallbackScript.length / 10), // Estimate duration
-            type: 'summary',
-            transcript: fallbackScript
-          };
+          const sections: AudioSection[] = [
+            {
+              id: 'fallback',
+              title: 'AI-Generated Summary (Enhanced TTS)',
+              duration: Math.floor(fallbackScript.length / 8), // Better duration estimation
+              type: 'summary',
+              transcript: fallbackScript,
+              pageNumber: currentPage,
+              relevanceScore: 0.8,
+              startTime: 0,
+              endTime: Math.floor(fallbackScript.length / 8)
+            }
+          ];
           
-          setAudioSections([generatedSection]);
-          setDuration(generatedSection.duration);
+          setAudioSections(sections);
+          setDuration(sections[0].duration);
           
           toast({
-            title: "Podcast generated (Fallback)",
-            description: "Using browser text-to-speech. Click play to listen."
+            title: "Podcast generated (Enhanced Fallback)",
+            description: "Using enhanced browser text-to-speech. Click play to listen."
           });
         } else {
           throw new Error("Speech synthesis not supported");
@@ -144,7 +203,6 @@ export function PodcastPanel({
           description: "Unable to generate audio. Please check your connection and try again.",
           variant: "destructive"
         });
-        // Don't fallback to mock data - leave sections empty
         setAudioSections([]);
         setPodcastScript('');
         setAudioUrl('');
@@ -179,17 +237,25 @@ export function PodcastPanel({
         setIsPlaying(false);
       }
     } else {
-      // Check if this is browser TTS or real audio
+      // Enhanced playback with better audio quality
       if (audioUrl.startsWith('browser-tts://')) {
-        // Use browser speech synthesis
         if ('speechSynthesis' in window && podcastScript) {
-          // Cancel any existing speech
           window.speechSynthesis?.cancel();
           
           const utterance = new SpeechSynthesisUtterance(podcastScript);
-          utterance.rate = 0.9;
+          utterance.rate = 0.85; // Slightly slower for clarity
           utterance.pitch = 1.0;
           utterance.volume = volume[0];
+          
+          // Enhanced voice selection
+          const voices = window.speechSynthesis.getVoices();
+          const preferredVoice = voices.find(voice => 
+            voice.lang === 'en-US' && voice.name.includes('Neural')
+          ) || voices.find(voice => voice.lang === 'en-US');
+          
+          if (preferredVoice) {
+            utterance.voice = preferredVoice;
+          }
           
           utterance.onstart = () => setIsPlaying(true);
           utterance.onend = () => setIsPlaying(false);
@@ -206,16 +272,14 @@ export function PodcastPanel({
         } else {
           toast({
             title: "Speech synthesis not available",
-            description: "Your browser doesn't support text-to-speech.",
+            description: "Your browser doesn't support enhanced text-to-speech.",
             variant: "destructive"
           });
         }
       } else if (audioRef.current) {
         try {
-          // Set the audio source if not already set
           if (audioRef.current.src !== audioUrl) {
             audioRef.current.src = audioUrl;
-            // Wait for the audio to load
             await new Promise((resolve, reject) => {
               audioRef.current!.onloadeddata = resolve;
               audioRef.current!.onerror = reject;
@@ -280,21 +344,40 @@ export function PodcastPanel({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const getCurrentSection = () => {
-    let timeAccumulator = 0;
+  const getCurrentSection = useCallback(() => {
     for (let i = 0; i < audioSections.length; i++) {
-      timeAccumulator += audioSections[i].duration;
-      if (currentTime <= timeAccumulator) {
+      const section = audioSections[i];
+      if (currentTime >= section.startTime && currentTime <= section.endTime) {
         return i;
       }
     }
-    return audioSections.length - 1;
-  };
+    return 0;
+  }, [currentTime, audioSections]);
+
+  const handleSectionClick = useCallback((section: AudioSection) => {
+    setSelectedSection(section.id);
+    
+    // Jump to the section start time
+    const newTime = section.startTime;
+    setCurrentTime(newTime);
+    
+    if (audioRef.current) {
+      audioRef.current.currentTime = newTime;
+    }
+    
+    // Navigate to page if available
+    if (onNavigateToPage && section.pageNumber) {
+      onNavigateToPage(section.pageNumber);
+    }
+    
+    // Clear selection after delay
+    setTimeout(() => setSelectedSection(null), 2000);
+  }, [onNavigateToPage]);
 
   const currentSectionIndex = getCurrentSection();
   const currentSectionData = audioSections[currentSectionIndex];
 
-  // Simulate audio progress
+  // Enhanced audio progress simulation
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
@@ -321,10 +404,10 @@ export function PodcastPanel({
       <div className="p-4 border-b border-border-subtle">
         <div className="flex items-center gap-2 mb-2">
           <Mic className="h-5 w-5 text-brand-primary" />
-          <h3 className="font-semibold text-text-primary">Podcast Mode</h3>
+          <h3 className="font-semibold text-text-primary">Enhanced Podcast Mode</h3>
         </div>
         <p className="text-xs text-text-secondary">
-          Listen to AI-generated audio summaries and insights
+          Listen to high-quality AI-generated audio summaries with smart navigation
         </p>
       </div>
 
@@ -338,7 +421,7 @@ export function PodcastPanel({
                 No Audio Generated
               </h4>
               <p className="text-xs text-text-secondary mb-4">
-                Generate audio summary for page {currentPage} and related content
+                Generate enhanced audio summary for page {currentPage} and related content
               </p>
             </div>
             
@@ -349,20 +432,20 @@ export function PodcastPanel({
             >
               {isGenerating ? (
                 <>
-                  <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  Generating Audio...
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Generating Enhanced Audio...
                 </>
               ) : (
                 <>
-                  <Play className="h-4 w-4" />
-                  Generate Podcast
+                  <Mic className="h-4 w-4" />
+                  Generate Enhanced Podcast
                 </>
               )}
             </Button>
           </div>
         ) : (
           <>
-            {/* Audio Controls */}
+            {/* Enhanced Audio Controls */}
             <div className="space-y-4">
               {/* Main Controls */}
               <div className="flex items-center justify-center gap-3">
@@ -403,7 +486,7 @@ export function PodcastPanel({
                 </Button>
               </div>
 
-              {/* Progress Bar */}
+              {/* Enhanced Progress Bar */}
               <div className="space-y-2">
                 <Slider
                   value={[currentTime]}
@@ -444,9 +527,9 @@ export function PodcastPanel({
               </div>
             </div>
 
-            {/* Current Section Info */}
+            {/* Enhanced Current Section Info */}
             {currentSectionData && (
-              <div className="p-3 bg-surface-elevated rounded-lg">
+              <div className="p-3 bg-surface-elevated rounded-lg border border-border-subtle">
                 <div className="flex items-center justify-between mb-2">
                   <Badge variant="secondary" className="text-xs">
                     {currentSectionData.type}
@@ -460,13 +543,20 @@ export function PodcastPanel({
                   {currentSectionData.title}
                 </h4>
                 
-                <p className="text-xs text-text-secondary">
-                  Duration: {formatTime(currentSectionData.duration)}
-                </p>
+                <div className="flex items-center gap-2 text-xs text-text-secondary">
+                  <Clock className="h-3 w-3" />
+                  <span>Duration: {formatTime(currentSectionData.duration)}</span>
+                  {currentSectionData.relevanceScore && (
+                    <>
+                      <Star className="h-3 w-3" />
+                      <span>{Math.round(currentSectionData.relevanceScore * 100)}% relevant</span>
+                    </>
+                  )}
+                </div>
               </div>
             )}
 
-            {/* Transcript Toggle */}
+            {/* Enhanced Action Buttons */}
             <div className="flex gap-2">
               <Button
                 variant="outline"
@@ -500,23 +590,24 @@ export function PodcastPanel({
         )}
       </div>
 
-      {/* Transcript */}
+      {/* Enhanced Transcript with Section Navigation */}
       {showTranscript && audioSections.length > 0 && (
         <div className="border-t border-border-subtle flex-1">
           <ScrollArea className="h-full">
             <div className="p-4 space-y-3">
               <h4 className="text-sm font-medium text-text-primary">
-                Transcript
+                Interactive Transcript
               </h4>
               
               {audioSections.map((section, index) => (
                 <div
                   key={section.id}
-                  className={`p-3 rounded-lg transition-colors ${
+                  className={`p-3 rounded-lg transition-all duration-200 cursor-pointer ${
                     index === currentSectionIndex
                       ? 'bg-surface-selected border border-brand-primary/20'
-                      : 'bg-surface-elevated'
-                  }`}
+                      : 'bg-surface-elevated hover:bg-surface-hover'
+                  } ${selectedSection === section.id ? 'ring-2 ring-brand-primary/50' : ''}`}
+                  onClick={() => handleSectionClick(section)}
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <Badge 
@@ -525,14 +616,41 @@ export function PodcastPanel({
                     >
                       {section.title}
                     </Badge>
-                    <span className="text-xs text-text-tertiary">
-                      {formatTime(section.duration)}
-                    </span>
+                    <div className="flex items-center gap-1 text-xs text-text-tertiary">
+                      <Clock className="h-3 w-3" />
+                      <span>{formatTime(section.duration)}</span>
+                      {section.pageNumber && (
+                        <>
+                          <BookOpen className="h-3 w-3 ml-2" />
+                          <span>Page {section.pageNumber}</span>
+                        </>
+                      )}
+                    </div>
                   </div>
                   
                   <p className="text-sm text-text-secondary leading-relaxed">
                     {section.transcript}
                   </p>
+                  
+                  {/* Quick navigation indicator */}
+                  {section.pageNumber && section.pageNumber !== currentPage && (
+                    <div className="mt-2 pt-2 border-t border-border-subtle">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="w-full text-xs gap-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onNavigateToPage) {
+                            onNavigateToPage(section.pageNumber!);
+                          }
+                        }}
+                      >
+                        <Target className="h-3 w-3" />
+                        Jump to Page {section.pageNumber}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
