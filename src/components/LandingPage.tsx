@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 import { apiService, DocumentInfo } from '@/lib/api';
 import { 
   Upload, 
@@ -64,6 +65,36 @@ export function LandingPage({ onStart }: LandingPageProps) {
 
     setIsUploading(true);
     try {
+      // First check if backend is available
+      try {
+        await apiService.healthCheck();
+      } catch (healthError) {
+        toast({
+          title: "Backend service unavailable",
+          description: "The backend service is not running. Starting in demo mode with sample content.",
+          variant: "default"
+        });
+        
+        // Create mock documents for demo mode
+        const mockDocuments = selectedFiles.map((file, index) => ({
+          id: `demo-${index}`,
+          name: file.name,
+          title: file.name.replace('.pdf', ''),
+          outline: [
+            { level: 'H1', text: 'Introduction', page: 1 },
+            { level: 'H2', text: 'Overview', page: 2 },
+            { level: 'H1', text: 'Main Content', page: 5 },
+            { level: 'H2', text: 'Analysis', page: 8 },
+            { level: 'H1', text: 'Conclusion', page: 12 }
+          ],
+          language: 'en',
+          upload_timestamp: new Date().toISOString()
+        }));
+        
+        onStart(mockDocuments, persona, jobToBeDone);
+        return;
+      }
+
       const uploadedDocuments = await apiService.uploadPDFs(selectedFiles);
       
       toast({
@@ -74,11 +105,47 @@ export function LandingPage({ onStart }: LandingPageProps) {
       onStart(uploadedDocuments, persona, jobToBeDone);
     } catch (error) {
       console.error('Upload failed:', error);
+      
+      // Show detailed error message
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      
       toast({
         title: "Upload failed",
-        description: "Failed to upload and process PDFs. Please try again.",
+        description: `Failed to upload and process PDFs: ${errorMessage}. Please check if the backend service is running.`,
         variant: "destructive"
       });
+      
+             // Offer demo mode as fallback
+       setTimeout(() => {
+         const createMockDocuments = () => {
+           const mockDocuments = selectedFiles.map((file, index) => ({
+             id: `demo-${index}`,
+             name: file.name,
+             title: file.name.replace('.pdf', ''),
+             outline: [
+               { level: 'H1', text: 'Introduction', page: 1 },
+               { level: 'H2', text: 'Overview', page: 2 },
+               { level: 'H1', text: 'Main Content', page: 5 },
+               { level: 'H2', text: 'Analysis', page: 8 },
+               { level: 'H1', text: 'Conclusion', page: 12 }
+             ],
+             language: 'en',
+             upload_timestamp: new Date().toISOString()
+           }));
+           onStart(mockDocuments, persona, jobToBeDone);
+         };
+
+         toast({
+           title: "Try demo mode?",
+           description: "Continue with sample content while the backend is being set up.",
+           variant: "default",
+           action: (
+             <ToastAction altText="Start Demo" onClick={createMockDocuments}>
+               Start Demo
+             </ToastAction>
+           )
+         });
+       }, 2000);
     } finally {
       setIsUploading(false);
     }

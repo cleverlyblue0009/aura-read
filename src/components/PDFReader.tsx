@@ -132,7 +132,18 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
   const [currentLanguage, setCurrentLanguage] = useState('en');
   const [highlightMode, setHighlightMode] = useState<'automatic' | 'manual'>('automatic');
   const [isHighlighting, setIsHighlighting] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
   const { toast } = useToast();
+
+  // Initialize with first document if available
+  useEffect(() => {
+    if (documents && documents.length > 0 && !currentDocument) {
+      setCurrentDocument(documents[0]);
+      setHasError(false);
+      setErrorMessage('');
+    }
+  }, [documents, currentDocument]);
 
   // Performance optimization refs
   const navigationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -700,7 +711,42 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
 
         {/* Main PDF Viewer */}
         <main className="flex-1 relative">
-          {currentDocument ? (
+          {hasError ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center space-y-4">
+                <BookOpen className="h-16 w-16 text-text-tertiary mx-auto" />
+                <div>
+                  <h2 className="text-xl font-semibold text-text-primary mb-2">
+                    Error loading PDF
+                  </h2>
+                  <p className="text-text-secondary mb-4">
+                    {errorMessage || 'Unable to load the PDF document. This might be because the backend service is not running.'}
+                  </p>
+                  <div className="space-y-2">
+                    <Button 
+                      onClick={() => {
+                        setHasError(false);
+                        setErrorMessage('');
+                        if (currentDocument) {
+                          // Try to reload the document
+                          setCurrentDocument(null);
+                          setTimeout(() => setCurrentDocument(documents?.[0] || null), 100);
+                        }
+                      }}
+                      variant="outline"
+                    >
+                      Try Again
+                    </Button>
+                    {onBack && (
+                      <Button onClick={onBack} variant="ghost">
+                        Back to Upload
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : currentDocument ? (
             <HybridPDFViewer
               documentUrl={currentDocument.url}
               documentName={currentDocument.name}
@@ -719,6 +765,11 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
                   <p className="text-text-secondary">
                     Upload a PDF file to get started with intelligent reading
                   </p>
+                  {onBack && (
+                    <Button onClick={onBack} variant="outline" className="mt-4">
+                      Back to Upload
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
