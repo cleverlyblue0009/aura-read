@@ -3,6 +3,57 @@ import { Button } from '@/components/ui/button';
 import { DocumentOutline } from './DocumentOutline';
 import { FloatingTools } from './FloatingTools';
 import { AdobePDFViewer, FallbackPDFViewer } from './AdobePDFViewer';
+
+// Hybrid PDF Viewer component that tries Adobe first, then falls back to iframe
+function HybridPDFViewer({ 
+  documentUrl, 
+  documentName, 
+  onPageChange, 
+  onTextSelection, 
+  clientId 
+}: {
+  documentUrl: string;
+  documentName: string;
+  onPageChange?: (page: number) => void;
+  onTextSelection?: (text: string, page: number) => void;
+  clientId?: string;
+}) {
+  const [useAdobeViewer, setUseAdobeViewer] = useState(true);
+  const [adobeFailed, setAdobeFailed] = useState(false);
+
+  const handleAdobeError = () => {
+    console.log("Adobe PDF viewer failed, falling back to iframe viewer");
+    setAdobeFailed(true);
+    setUseAdobeViewer(false);
+  };
+
+  if (!useAdobeViewer || adobeFailed) {
+    return <FallbackPDFViewer documentUrl={documentUrl} documentName={documentName} />;
+  }
+
+  return (
+    <div className="h-full relative">
+      <AdobePDFViewer
+        documentUrl={documentUrl}
+        documentName={documentName}
+        onPageChange={onPageChange}
+        onTextSelection={onTextSelection}
+        clientId={clientId}
+      />
+      {/* Fallback button */}
+      <div className="absolute top-4 right-4 z-10">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setUseAdobeViewer(false)}
+          className="bg-background/90 backdrop-blur-sm"
+        >
+          Use Simple Viewer
+        </Button>
+      </div>
+    </div>
+  );
+}
 import { ThemeToggle } from './ThemeToggle';
 import { AccessibilityPanel } from './AccessibilityPanel';
 import { InsightsPanel } from './InsightsPanel';
@@ -68,6 +119,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
   const [readingStartTime, setReadingStartTime] = useState<number>(Date.now());
   const [isActivelyReading, setIsActivelyReading] = useState(true);
   const [totalPages, setTotalPages] = useState(30); // Will be updated from PDF
+  const [currentLanguage, setCurrentLanguage] = useState('en');
   const { toast } = useToast();
 
   // Reading progress tracking
@@ -82,6 +134,36 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
   useEffect(() => {
     if (documents && documents.length > 0 && !currentDocument) {
       setCurrentDocument(documents[0]);
+      
+      // Add some sample highlights to demonstrate the feature
+      const sampleHighlights: Highlight[] = [
+        {
+          id: 'sample-1',
+          text: 'This is an important concept that relates to the main topic of the document.',
+          page: 1,
+          color: 'primary',
+          relevanceScore: 0.95,
+          explanation: 'Key concept relevant to your analysis'
+        },
+        {
+          id: 'sample-2', 
+          text: 'Supporting evidence and data that reinforces the primary arguments.',
+          page: 2,
+          color: 'secondary',
+          relevanceScore: 0.87,
+          explanation: 'Supporting evidence for main thesis'
+        },
+        {
+          id: 'sample-3',
+          text: 'Critical analysis point that requires further consideration.',
+          page: 3,
+          color: 'tertiary',
+          relevanceScore: 0.82,
+          explanation: 'Requires deeper analysis for your job role'
+        }
+      ];
+      
+      setHighlights(sampleHighlights);
     }
   }, [documents, currentDocument]);
 
@@ -196,6 +278,27 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
     setHighlights(prev => [...prev, highlight]);
   };
 
+  // Create highlight from selected text
+  const createHighlightFromSelection = (text: string, page: number, color: 'primary' | 'secondary' | 'tertiary' = 'primary') => {
+    if (!text || text.trim().length < 10) return; // Minimum text length
+
+    const highlight: Highlight = {
+      id: `user-highlight-${Date.now()}`,
+      text: text.trim(),
+      page,
+      color,
+      relevanceScore: 0.9, // User-created highlights are highly relevant
+      explanation: 'User highlighted text'
+    };
+
+    setHighlights(prev => [...prev, highlight]);
+    
+    toast({
+      title: "Highlight created",
+      description: `Added highlight on page ${page}`,
+    });
+  };
+
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
@@ -302,7 +405,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
         {/* Main PDF Viewer */}
         <main className="flex-1 relative">
           {currentDocument ? (
-            <AdobePDFViewer
+            <HybridPDFViewer
               documentUrl={currentDocument.url}
               documentName={currentDocument.name}
               onPageChange={setCurrentPage}
@@ -310,6 +413,12 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
                 console.log('Text selected:', text, 'on page:', page);
                 setSelectedText(text);
                 setCurrentPage(page);
+                
+                // Create highlight from selection
+                if (text.length >= 10) {
+                  createHighlightFromSelection(text, page);
+                }
+                
                 // Automatically generate insights for selected text
                 if (text.length > 50) {
                   generateInsightsForText(text);
@@ -388,7 +497,16 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
                 />
               )}
               
-              {activeRightPanel === 'accessibility' && <AccessibilityPanel />}
+              {activeRightPanel === 'accessibility' && (
+                <AccessibilityPanel 
+                  currentText={selectedText || getCurrentSectionTitle()}
+                  onLanguageChange={(language) => {
+                    setCurrentLanguage(language);
+                    // Here you could add logic to translate content or change UI language
+                    console.log('Language changed to:', language);
+                  }}
+                />
+              )}
               
               {activeRightPanel === 'simplifier' && (
                 <TextSimplifier 
