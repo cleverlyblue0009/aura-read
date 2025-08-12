@@ -78,13 +78,19 @@ export function PodcastPanel({
       );
       
       setPodcastScript(result.script);
-      setAudioUrl(result.audio_url);
+      
+      // Handle different audio URL types
+      if (result.audio_url === "browser-tts-fallback") {
+        setAudioUrl("browser-tts://generated-audio");
+      } else {
+        setAudioUrl(result.audio_url);
+      }
       
       // Create audio sections from the generated content
       const generatedSection: AudioSection = {
         id: '1',
-        title: 'AI-Generated Summary',
-        duration: 180, // Estimated duration
+        title: result.audio_url === "browser-tts-fallback" ? 'AI-Generated Summary (Browser TTS)' : 'AI-Generated Summary',
+        duration: Math.max(60, Math.floor(result.script.length / 10)), // Better duration estimation
         type: 'summary',
         transcript: result.script
       };
@@ -210,30 +216,63 @@ export function PodcastPanel({
             variant: "destructive"
           });
         }
-      } else if (audioRef.current) {
-        try {
-          // Set the audio source if not already set
-          if (audioRef.current.src !== audioUrl) {
-            audioRef.current.src = audioUrl;
-            // Wait for the audio to load
-            await new Promise((resolve, reject) => {
-              audioRef.current!.onloadeddata = resolve;
-              audioRef.current!.onerror = reject;
-            });
+              } else if (audioRef.current && !audioUrl.startsWith('browser-tts://')) {
+          try {
+            // Handle regular audio files
+            const fullAudioUrl = audioUrl.startsWith('http') ? audioUrl : apiService.getAudioUrl(audioUrl);
+            
+            // Set the audio source if not already set
+            if (audioRef.current.src !== fullAudioUrl) {
+              audioRef.current.src = fullAudioUrl;
+              // Wait for the audio to load
+              await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => reject(new Error('Audio load timeout')), 5000);
+                audioRef.current!.onloadeddata = () => {
+                  clearTimeout(timeout);
+                  resolve(undefined);
+                };
+                audioRef.current!.onerror = () => {
+                  clearTimeout(timeout);
+                  reject(new Error('Audio load error'));
+                };
+              });
+            }
+            
+            await audioRef.current.play();
+            setIsPlaying(true);
+          } catch (error) {
+            console.error('Error playing audio:', error);
+            // Fallback to browser TTS if regular audio fails
+            if ('speechSynthesis' in window && podcastScript) {
+              setAudioUrl("browser-tts://fallback");
+              // Retry with speech synthesis
+              const utterance = new SpeechSynthesisUtterance(podcastScript);
+              utterance.rate = 0.9;
+              utterance.pitch = 1.0;
+              utterance.volume = volume[0];
+              
+              utterance.onstart = () => setIsPlaying(true);
+              utterance.onend = () => setIsPlaying(false);
+              utterance.onerror = () => {
+                setIsPlaying(false);
+                toast({
+                  title: "Playback failed",
+                  description: "Unable to play audio with any method.",
+                  variant: "destructive"
+                });
+              };
+              
+              window.speechSynthesis.speak(utterance);
+            } else {
+              toast({
+                title: "Playback failed",
+                description: "Unable to play audio. Please try generating again.",
+                variant: "destructive"
+              });
+              setIsPlaying(false);
+            }
           }
-          
-          await audioRef.current.play();
-          setIsPlaying(true);
-        } catch (error) {
-          console.error('Error playing audio:', error);
-          toast({
-            title: "Playback failed",
-            description: "Unable to play audio. Please check the audio file.",
-            variant: "destructive"
-          });
-          setIsPlaying(false);
         }
-      }
     }
   };
 

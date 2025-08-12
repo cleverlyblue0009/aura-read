@@ -91,20 +91,26 @@ def is_form_pdf(text_blocks):
     return short_lines / len(text_blocks) > 0.5
 
 def detect_headings(text_blocks, title):
-    """Detect headings in the PDF text blocks."""
+    """Detect headings in the PDF text blocks with improved logic."""
     if not text_blocks:
         return []
-    if is_form_pdf(text_blocks):
-        large_blocks = [b for b in text_blocks if b['font_size'] > 15 and len(b['text'].split()) > 2]
-        if not large_blocks:
-            return []
+    
+    # Skip form detection for now - it's too restrictive
     outline = []
     size_to_level_map = get_heading_hierarchy(text_blocks)
     seen_headings_on_page = defaultdict(set) 
     font_size_counts = defaultdict(int)
+    
     for block in text_blocks:
         font_size_counts[round(block["font_size"], 2)] += 1
+    
+    # Get the most common font size (likely body text)
     body_text_size = sorted(font_size_counts, key=font_size_counts.get, reverse=True)[0]
+    
+    # Get average font size for better comparison
+    total_chars = sum(len(block["text"]) * font_size_counts[round(block["font_size"], 2)] for block in text_blocks)
+    total_font_weight = sum(round(block["font_size"], 2) * len(block["text"]) for block in text_blocks)
+    avg_font_size = total_font_weight / total_chars if total_chars > 0 else body_text_size
     for block in text_blocks:
         text = block["text"].strip()
         page = block["page"]
@@ -119,31 +125,64 @@ def detect_headings(text_blocks, title):
             continue
 
         level = None
+        word_count = len(text.split())
+        
+        # Improved heading detection logic
+        
+        # 1. Numbered headings (most reliable)
         if re.match(r'^\d+\.\d+\.\d+\.\d+\s', text): 
             level = "H4"
         elif re.match(r'^\d+\.\d+\.\d+\s', text): 
             level = "H3"
         elif re.match(r'^\d+\.\d+\s', text): 
             level = "H2"
-        elif re.match(r'^\d+\.\s', text) and len(text.split()) > 1:
+        elif re.match(r'^\d+\.\s', text) and word_count > 1:
             level = "H1"
+        
+        # 2. Roman numerals
+        elif re.match(r'^[IVX]+\.\s', text) and word_count > 1:
+            level = "H1"
+        
+        # 3. Letter headings (A., B., etc.)
+        elif re.match(r'^[A-Z]\.\s', text) and word_count > 1 and word_count <= 8:
+            level = "H2"
+        
+        # Skip lines that are likely not headings
         if ':' in text and len(text.split(':')[-1].strip().split()) > 4:
             continue
-        if level is None and font_size > body_text_size and text.isupper():
-            word_count = len(text.split())
-            if 1 <= word_count <= 4:
-                level = "H1"
+        
+        # 4. Font-size based detection (improved)
+        if level is None:
+            font_size_threshold = max(body_text_size * 1.1, avg_font_size * 1.05)
+            
+            # Very large fonts are likely main headings
+            if font_size >= body_text_size * 1.5:
+                if 1 <= word_count <= 10 and len(text) <= 100:
+                    level = "H1"
+            # Moderately larger fonts
+            elif font_size >= font_size_threshold:
+                if 1 <= word_count <= 15 and len(text) <= 120:
+                    # Check if it's all caps (common for headings)
+                    if text.isupper() and word_count <= 8:
+                        level = "H1"
+                    # Check if it starts with capital and has title-like structure
+                    elif text[0].isupper() and not text.endswith('.') and word_count <= 12:
+                        level = "H2"
+        
+        # 5. Font size mapping from hierarchy
         if level is None and font_size in size_to_level_map:
-            if len(text) < 80 and text.count('.') < 2 and text.count(' ') < 15:
+            if len(text) < 100 and text.count('.') < 2 and word_count <= 15:
                 level = size_to_level_map[font_size]
-        if level is None and font_size > body_text_size * 1.1 and text.isupper():
-            word_count = len(text.split())
-            if 1 <= word_count <= 6 and 10 <= len(text) <= 60:
-                level = "H1"
-        if level is None and font_size > body_text_size * 1.05 and len(text.split()) <= 4 and text.isupper():
-            level = "H1"
-        if level is None and font_size > body_text_size * 1.1 and len(text.split()) >= 4:
-            level = "H1"
+        
+        # 6. Position-based detection (headings often start lines)
+        if level is None and font_size > body_text_size:
+            bbox = block.get("bbox", [0, 0, 0, 0])
+            x_position = bbox[0] if bbox else 0
+            
+            # Left-aligned text with larger font might be heading
+            if x_position < 100 and word_count <= 10 and len(text) <= 80:
+                if not text.endswith('.') and not text.islower():
+                    level = "H2"
         if len(text.strip()) < 8 and text.lower() == text:
             continue
         if level:
@@ -205,3 +244,55 @@ def extract_full_text(pdf_path: str) -> str:
     except Exception as e:
         print(f"Error extracting text from {pdf_path}: {e}")
         return ""
+
+def extract_page_content(pdf_path: str, page_num: int) -> str:
+    """Extract text content from a specific page."""
+    try:
+        document = fitz.open(pdf_path)
+        if page_num < 0 or page_num >= document.page_count:
+            document.close()
+            return ""
+        
+        page = document.load_page(page_num)
+        text = page.get_text()
+        document.close()
+        return text.strip()
+    except Exception as e:
+        print(f"Error extracting page {page_num} from {pdf_path}: {e}")
+        return ""
+
+def extract_section_content(pdf_path: str, start_page: int, end_page: int = None) -> str:
+    """Extract text content from a range of pages."""
+    try:
+        document = fitz.open(pdf_path)
+        if end_page is None:
+            end_page = start_page
+        
+        content = ""
+        for page_num in range(start_page, min(end_page + 1, document.page_count)):
+            if page_num >= 0:
+                page = document.load_page(page_num)
+                content += page.get_text() + "\n"
+        
+        document.close()
+        return content.strip()
+    except Exception as e:
+        print(f"Error extracting section from {pdf_path}: {e}")
+        return ""
+
+def get_pdf_metadata(pdf_path: str) -> dict:
+    """Extract PDF metadata including page count and basic info."""
+    try:
+        document = fitz.open(pdf_path)
+        metadata = {
+            "page_count": document.page_count,
+            "title": document.metadata.get("title", ""),
+            "author": document.metadata.get("author", ""),
+            "subject": document.metadata.get("subject", ""),
+            "creator": document.metadata.get("creator", ""),
+        }
+        document.close()
+        return metadata
+    except Exception as e:
+        print(f"Error extracting metadata from {pdf_path}: {e}")
+        return {"page_count": 0}

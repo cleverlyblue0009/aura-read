@@ -37,7 +37,8 @@ class LLMService:
                               context: Optional[str] = None) -> List[Dict[str, Any]]:
         """Generate AI insights for the given text."""
         if not self.is_available():
-            return [{"type": "info", "content": "LLM service not available. Please configure GEMINI_API_KEY."}]
+            # Provide better fallback insights based on text analysis
+            return self._generate_fallback_insights(text, persona, job_to_be_done)
         
         try:
             prompt = f"""
@@ -185,3 +186,62 @@ class LLMService:
         except Exception as e:
             print(f"Error defining term: {e}")
             return f"Unable to define '{term}'"
+    
+    def _generate_fallback_insights(self, text: str, persona: str, job_to_be_done: str) -> List[Dict[str, Any]]:
+        """Generate insights using text analysis when LLM is not available."""
+        insights = []
+        
+        # Extract key metrics and numbers
+        import re
+        numbers = re.findall(r'\d+(?:\.\d+)?%|\$\d+(?:,\d+)*(?:\.\d+)?|\d+(?:,\d+)*(?:\.\d+)?\s*(?:million|billion|thousand|times|fold)', text, re.IGNORECASE)
+        
+        # Extract key sentences (first, last, and sentences with keywords)
+        sentences = re.split(r'[.!?]+', text)
+        sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
+        
+        # Generate takeaway insight
+        if sentences:
+            key_sentence = sentences[0] if len(sentences[0]) > 30 else (sentences[1] if len(sentences) > 1 else sentences[0])
+            insights.append({
+                "type": "takeaway",
+                "content": f"As a {persona}, this section highlights: {key_sentence}. This information directly supports your {job_to_be_done.lower()} objectives."
+            })
+        
+        # Generate fact insight from numbers/metrics
+        if numbers:
+            metrics_text = ', '.join(numbers[:3])
+            insights.append({
+                "type": "fact",
+                "content": f"Key quantitative data: {metrics_text}. These metrics provide concrete evidence that can inform your {job_to_be_done.lower()} strategy."
+            })
+        
+        # Generate connection insight based on keywords
+        persona_keywords = self._extract_keywords(persona.lower())
+        job_keywords = self._extract_keywords(job_to_be_done.lower())
+        text_keywords = self._extract_keywords(text.lower())
+        
+        common_keywords = (persona_keywords | job_keywords) & text_keywords
+        if common_keywords:
+            insights.append({
+                "type": "connection",
+                "content": f"This content relates to your role through: {', '.join(list(common_keywords)[:3])}. Consider how these concepts connect to broader themes in your {job_to_be_done.lower()}."
+            })
+        
+        # Generate contradiction/challenge insight
+        challenge_words = ['however', 'but', 'although', 'despite', 'challenge', 'limitation', 'problem', 'difficult', 'issue']
+        if any(word in text.lower() for word in challenge_words):
+            insights.append({
+                "type": "contradiction",
+                "content": f"This section presents challenges or limitations that a {persona.lower()} should consider. These factors may impact your {job_to_be_done.lower()} approach and require careful planning."
+            })
+        
+        return insights[:4]  # Return up to 4 insights
+    
+    def _extract_keywords(self, text: str) -> set:
+        """Extract meaningful keywords from text."""
+        import re
+        # Remove common stop words and extract meaningful terms
+        stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'this', 'that', 'these', 'those'}
+        
+        words = re.findall(r'\b[a-zA-Z]{3,}\b', text.lower())
+        return {word for word in words if word not in stop_words and len(word) > 3}

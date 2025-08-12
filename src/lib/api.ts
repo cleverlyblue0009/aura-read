@@ -244,11 +244,35 @@ class ApiService {
     return response.json();
   }
 
+  async getPageContent(docId: string, pageNum: number): Promise<{page: number, content: string, total_pages: number}> {
+    const response = await fetch(`${this.baseUrl}/documents/${docId}/page/${pageNum}`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to get page content: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async getSectionContent(docId: string, startPage: number, endPage?: number): Promise<{start_page: number, end_page: number, content: string}> {
+    const url = `${this.baseUrl}/documents/${docId}/section?start_page=${startPage}${endPage ? `&end_page=${endPage}` : ''}`;
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to get section content: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
   getPDFUrl(docId: string): string {
     return `${this.baseUrl}/pdf/${docId}`;
   }
 
   getAudioUrl(filename: string): string {
+    if (filename === "browser-tts-fallback") {
+      return filename; // Special case for browser TTS
+    }
     return `${this.baseUrl}/audio/${filename}`;
   }
 

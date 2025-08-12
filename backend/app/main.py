@@ -11,7 +11,10 @@ from pydantic import BaseModel
 import json
 
 # Local imports
-from .pdf_analyzer import analyze_pdf, extract_full_text
+from .pdf_analyzer import (
+    analyze_pdf, extract_full_text, extract_page_content, 
+    extract_section_content, get_pdf_metadata
+)
 from .document_intelligence import process_documents_intelligence, find_related_sections
 from .llm_services import LLMService
 from .tts_service import TTSService
@@ -106,12 +109,23 @@ async def upload_pdfs(files: List[UploadFile] = File(...)):
         # Analyze PDF
         try:
             analysis = analyze_pdf(file_path)
+            metadata = get_pdf_metadata(file_path)
+            
+            # Convert outline format for frontend
+            outline_items = []
+            for item in analysis["outline"]:
+                outline_items.append({
+                    "id": f"{doc_id}-{item['page']}-{len(outline_items)}",
+                    "title": item["text"],
+                    "level": int(item["level"][1]) if item["level"].startswith('H') else 1,
+                    "page": item["page"] + 1  # Convert to 1-based indexing for frontend
+                })
             
             doc_info = DocumentInfo(
                 id=doc_id,
                 name=file.filename,
-                title=analysis["title"] or file.filename,
-                outline=analysis["outline"],
+                title=analysis["title"] or metadata.get("title") or file.filename,
+                outline=outline_items,
                 language=analysis.get("language", "unknown"),
                 upload_timestamp=datetime.utcnow().isoformat()
             )
@@ -120,7 +134,8 @@ async def upload_pdfs(files: List[UploadFile] = File(...)):
             documents_store[doc_id] = {
                 "info": doc_info.dict(),
                 "file_path": file_path,
-                "analysis": analysis
+                "analysis": analysis,
+                "metadata": metadata
             }
             
             uploaded_docs.append(doc_info)
@@ -302,6 +317,45 @@ async def get_pdf(doc_id: str):
         raise HTTPException(status_code=404, detail="PDF file not found")
     
     return FileResponse(file_path, media_type="application/pdf")
+
+@app.get("/documents/{doc_id}/page/{page_num}")
+async def get_page_content(doc_id: str, page_num: int):
+    """Get text content from a specific page."""
+    if doc_id not in documents_store:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    file_path = documents_store[doc_id]["file_path"]
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="PDF file not found")
+    
+    # Convert to 0-based indexing for backend
+    content = extract_page_content(file_path, page_num - 1)
+    metadata = documents_store[doc_id].get("metadata", {})
+    
+    return {
+        "page": page_num,
+        "content": content,
+        "total_pages": metadata.get("page_count", 0)
+    }
+
+@app.get("/documents/{doc_id}/section")
+async def get_section_content(doc_id: str, start_page: int, end_page: int = None):
+    """Get text content from a range of pages."""
+    if doc_id not in documents_store:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    file_path = documents_store[doc_id]["file_path"]
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="PDF file not found")
+    
+    # Convert to 0-based indexing for backend
+    content = extract_section_content(file_path, start_page - 1, end_page - 1 if end_page else None)
+    
+    return {
+        "start_page": start_page,
+        "end_page": end_page or start_page,
+        "content": content
+    }
 
 @app.post("/reading-progress")
 async def track_reading_progress(doc_id: str = Form(...), 

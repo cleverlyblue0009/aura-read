@@ -121,6 +121,8 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
   const [isActivelyReading, setIsActivelyReading] = useState(true);
   const [totalPages, setTotalPages] = useState(30); // Will be updated from PDF
   const [currentLanguage, setCurrentLanguage] = useState('en');
+  const [currentPageContent, setCurrentPageContent] = useState<string>('');
+  const [isLoadingContent, setIsLoadingContent] = useState(false);
   const { toast } = useToast();
 
   // Reading progress tracking
@@ -168,12 +170,35 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
     }
   }, [documents, currentDocument]);
 
+  // Load page content when page or document changes
+  useEffect(() => {
+    if (currentDocument) {
+      loadPageContent();
+    }
+  }, [currentDocument, currentPage]);
+
   // Load related sections when page or document changes
   useEffect(() => {
-    if (currentDocument && persona && jobToBeDone) {
+    if (currentDocument && persona && jobToBeDone && currentPageContent) {
       loadRelatedSections();
     }
-  }, [currentDocument, currentPage, persona, jobToBeDone]);
+  }, [currentDocument, currentPage, persona, jobToBeDone, currentPageContent]);
+
+  const loadPageContent = async () => {
+    if (!currentDocument) return;
+    
+    setIsLoadingContent(true);
+    try {
+      const pageData = await apiService.getPageContent(currentDocument.id, currentPage);
+      setCurrentPageContent(pageData.content);
+      setTotalPages(pageData.total_pages);
+    } catch (error) {
+      console.error('Failed to load page content:', error);
+      setCurrentPageContent('');
+    } finally {
+      setIsLoadingContent(false);
+    }
+  };
 
   const loadRelatedSections = async () => {
     if (!currentDocument || !persona || !jobToBeDone) return;
@@ -205,6 +230,11 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
         }));
         
         setHighlights(newHighlights);
+      } else {
+        // Generate highlights from current page content if available
+        if (currentPageContent) {
+          generateContentBasedHighlights();
+        }
       }
       
     } catch (error) {
@@ -262,6 +292,71 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
   };
 
   // Create highlight from selected text
+  const generateContentBasedHighlights = () => {
+    if (!currentPageContent || !persona || !jobToBeDone) return;
+
+    // Extract key sentences and phrases from the content
+    const sentences = currentPageContent.split(/[.!?]+/).filter(s => s.trim().length > 30);
+    const highlights: Highlight[] = [];
+
+    // Look for sentences with numbers/metrics
+    const metricSentences = sentences.filter(s => 
+      /\d+(?:\.\d+)?%|\$\d+|\d+(?:,\d+)*(?:\.\d+)?\s*(?:million|billion|thousand|times|fold)/i.test(s)
+    );
+
+    metricSentences.slice(0, 2).forEach((sentence, index) => {
+      highlights.push({
+        id: `metric-${Date.now()}-${index}`,
+        text: sentence.trim(),
+        page: currentPage,
+        color: 'primary',
+        relevanceScore: 0.9,
+        explanation: 'Contains quantitative data relevant to your analysis'
+      });
+    });
+
+    // Look for sentences with persona-related keywords
+    const personaKeywords = persona.toLowerCase().split(' ');
+    const jobKeywords = jobToBeDone.toLowerCase().split(' ');
+    
+    const relevantSentences = sentences.filter(s => {
+      const lowerS = s.toLowerCase();
+      return personaKeywords.some(kw => lowerS.includes(kw)) || 
+             jobKeywords.some(kw => lowerS.includes(kw));
+    });
+
+    relevantSentences.slice(0, 2).forEach((sentence, index) => {
+      highlights.push({
+        id: `relevant-${Date.now()}-${index}`,
+        text: sentence.trim(),
+        page: currentPage,
+        color: 'secondary',
+        relevanceScore: 0.85,
+        explanation: `Relevant to your role as ${persona} and ${jobToBeDone}`
+      });
+    });
+
+    // Look for important concepts (capitalized terms, technical terms)
+    const conceptSentences = sentences.filter(s => 
+      /\b[A-Z][a-z]*(?:\s+[A-Z][a-z]*){1,3}\b/.test(s) && s.length < 200
+    );
+
+    conceptSentences.slice(0, 1).forEach((sentence, index) => {
+      highlights.push({
+        id: `concept-${Date.now()}-${index}`,
+        text: sentence.trim(),
+        page: currentPage,
+        color: 'tertiary',
+        relevanceScore: 0.8,
+        explanation: 'Contains important concepts or terminology'
+      });
+    });
+
+    if (highlights.length > 0) {
+      setHighlights(highlights);
+    }
+  };
+
   const createHighlightFromSelection = (text: string, page: number, color: 'primary' | 'secondary' | 'tertiary' = 'primary') => {
     if (!text || text.trim().length < 10) return; // Minimum text length
 
@@ -466,7 +561,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
                   documentId={currentDocument?.id}
                   persona={persona}
                   jobToBeDone={jobToBeDone}
-                  currentText={selectedText || getCurrentSectionTitle()}
+                  currentText={selectedText || currentPageContent || getCurrentSectionTitle()}
                   onPageNavigate={setCurrentPage}
                 />
               )}
@@ -475,7 +570,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
                 <PodcastPanel 
                   documentId={currentDocument?.id}
                   currentPage={currentPage}
-                  currentText={selectedText || getCurrentSectionTitle()}
+                  currentText={selectedText || currentPageContent || getCurrentSectionTitle()}
                   relatedSections={relatedSections.map(r => r.section_title)}
                   insights={currentInsights.map(i => i.content)}
                 />

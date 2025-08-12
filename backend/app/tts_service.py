@@ -38,8 +38,9 @@ class TTSService:
     async def generate_audio(self, text: str) -> Optional[str]:
         """Generate audio file from text and return filename."""
         if not self.is_available():
-            print("TTS service not available")
-            return None
+            print("Azure TTS service not available, creating placeholder audio info")
+            # Return a special identifier that the frontend can handle
+            return "browser-tts-fallback"
         
         try:
             # Generate unique filename
