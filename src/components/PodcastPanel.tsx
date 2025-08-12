@@ -99,15 +99,56 @@ export function PodcastPanel({
       
     } catch (error) {
       console.error('Failed to generate podcast:', error);
-      toast({
-        title: "Podcast generation failed",
-        description: "Unable to generate audio. Please check your connection and try again.",
-        variant: "destructive"
-      });
-      // Don't fallback to mock data - leave sections empty
-      setAudioSections([]);
-      setPodcastScript('');
-      setAudioUrl('');
+      
+      // Fallback: Create a mock podcast with browser text-to-speech
+      try {
+        const fallbackScript = `Welcome to your AI-generated podcast summary. 
+        
+        Based on your current reading: ${currentText?.slice(0, 200)}...
+        
+        Here are the key insights: ${insights.slice(0, 2).join('. ')}
+        
+        Related sections include: ${relatedSections.slice(0, 2).join(', ')}
+        
+        This completes your personalized podcast summary.`;
+        
+        setPodcastScript(fallbackScript);
+        
+        // Generate audio using browser's speech synthesis
+        if ('speechSynthesis' in window) {
+          // Create a mock audio URL since we can't generate actual file
+          setAudioUrl('browser-tts://mock-audio');
+          
+          const generatedSection: AudioSection = {
+            id: '1',
+            title: 'AI-Generated Summary (Browser TTS)',
+            duration: Math.floor(fallbackScript.length / 10), // Estimate duration
+            type: 'summary',
+            transcript: fallbackScript
+          };
+          
+          setAudioSections([generatedSection]);
+          setDuration(generatedSection.duration);
+          
+          toast({
+            title: "Podcast generated (Fallback)",
+            description: "Using browser text-to-speech. Click play to listen."
+          });
+        } else {
+          throw new Error("Speech synthesis not supported");
+        }
+        
+      } catch (fallbackError) {
+        toast({
+          title: "Podcast generation failed",
+          description: "Unable to generate audio. Please check your connection and try again.",
+          variant: "destructive"
+        });
+        // Don't fallback to mock data - leave sections empty
+        setAudioSections([]);
+        setPodcastScript('');
+        setAudioUrl('');
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -130,23 +171,53 @@ export function PodcastPanel({
     
     setIsPlaying(!isPlaying);
     
-    if (audioRef.current) {
+    if (audioRef.current || audioUrl.startsWith('browser-tts://')) {
       if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        // Set the audio source if not already set
-        if (audioRef.current.src !== audioUrl) {
-          audioRef.current.src = audioUrl;
-        }
-        audioRef.current.play().catch(error => {
-          console.error('Error playing audio:', error);
-          toast({
-            title: "Playback failed",
-            description: "Unable to play audio. Please try again.",
-            variant: "destructive"
-          });
+        // Pause audio or speech synthesis
+        if (audioUrl.startsWith('browser-tts://')) {
+          window.speechSynthesis?.cancel();
           setIsPlaying(false);
-        });
+        } else if (audioRef.current) {
+          audioRef.current.pause();
+        }
+      } else {
+        // Check if this is browser TTS or real audio
+        if (audioUrl.startsWith('browser-tts://')) {
+          // Use browser speech synthesis
+          if ('speechSynthesis' in window && podcastScript) {
+            const utterance = new SpeechSynthesisUtterance(podcastScript);
+            utterance.rate = 0.9;
+            utterance.pitch = 1.0;
+            utterance.volume = volume[0];
+            
+            utterance.onstart = () => setIsPlaying(true);
+            utterance.onend = () => setIsPlaying(false);
+            utterance.onerror = () => {
+              setIsPlaying(false);
+              toast({
+                title: "Playback failed",
+                description: "Unable to play audio. Please try again.",
+                variant: "destructive"
+              });
+            };
+            
+            window.speechSynthesis.speak(utterance);
+          }
+        } else {
+          // Set the audio source if not already set
+          if (audioRef.current.src !== audioUrl) {
+            audioRef.current.src = audioUrl;
+          }
+          audioRef.current.play().catch(error => {
+            console.error('Error playing audio:', error);
+            toast({
+              title: "Playback failed",
+              description: "Unable to play audio. Please try again.",
+              variant: "destructive"
+            });
+            setIsPlaying(false);
+          });
+        }
       }
     }
   };

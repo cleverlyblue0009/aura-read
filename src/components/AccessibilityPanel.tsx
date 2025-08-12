@@ -23,9 +23,10 @@ interface AccessibilityPanelProps {
   onFontSizeChange?: (size: number) => void;
   onDyslexiaModeChange?: (enabled: boolean) => void;
   onColorBlindModeChange?: (enabled: boolean) => void;
+  onLanguageChange?: (language: string) => void;
 }
 
-export function AccessibilityPanel({ currentText, onFontSizeChange, onColorBlindModeChange }: AccessibilityPanelProps) {
+export function AccessibilityPanel({ currentText, onFontSizeChange, onColorBlindModeChange, onLanguageChange }: AccessibilityPanelProps) {
   const [fontSize, setFontSize] = useState([16]);
   const [lineHeight, setLineHeight] = useState([1.5]);
   const [dyslexiaMode, setDyslexiaMode] = useState(false);
@@ -68,6 +69,13 @@ export function AccessibilityPanel({ currentText, onFontSizeChange, onColorBlind
       onColorBlindModeChange(colorBlindMode);
     }
   }, [colorBlindMode, onColorBlindModeChange]);
+
+  // Handle language changes
+  useEffect(() => {
+    if (onLanguageChange) {
+      onLanguageChange(selectedLanguage);
+    }
+  }, [selectedLanguage, onLanguageChange]);
 
   const readingModes = [
     { id: 'normal', label: 'Normal', active: !dyslexiaMode && !colorBlindMode },
@@ -336,10 +344,16 @@ export function AccessibilityPanel({ currentText, onFontSizeChange, onColorBlind
               {languages.map(lang => (
                 <Button
                   key={lang.code}
-                  variant="ghost"
+                  variant={lang.code === selectedLanguage ? "default" : "ghost"}
                   size="sm"
                   className="w-full justify-start gap-2"
-                  onClick={() => setSelectedLanguage(lang.code)}
+                  onClick={() => {
+                    setSelectedLanguage(lang.code);
+                    toast({
+                      title: "Language changed",
+                      description: `Interface language set to ${lang.label}`,
+                    });
+                  }}
                 >
                   <span>{lang.flag}</span>
                   <span>{lang.label}</span>

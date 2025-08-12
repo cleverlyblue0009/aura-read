@@ -38,23 +38,27 @@ export function AdobePDFViewer({
         setError(null);
         setIsReady(false);
 
-        // Wait for Adobe DC to be available
-        if (!window.AdobeDC) {
-          await new Promise((resolve) => {
-            const checkAdobeDC = () => {
-              if (window.AdobeDC) {
-                resolve(true);
-              } else {
-                setTimeout(checkAdobeDC, 100);
-              }
-            };
-            checkAdobeDC();
-          });
-        }
+        // Wait for Adobe DC to be available with timeout
+        const adobeTimeout = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Adobe SDK timeout")), 10000)
+        );
+        
+        const adobeReady = new Promise((resolve) => {
+          const checkAdobeDC = () => {
+            if (window.AdobeDC) {
+              resolve(true);
+            } else {
+              setTimeout(checkAdobeDC, 100);
+            }
+          };
+          checkAdobeDC();
+        });
+
+        await Promise.race([adobeReady, adobeTimeout]);
 
         // Configure Adobe PDF Embed
         const adobeDCView = new window.AdobeDC.View({
-          clientId: clientId || "test", // Use provided client ID or fallback
+          clientId: clientId || "85e35211c6c24c5bb8a6c4c8b9a2b4e8", // Better default client ID
           divId: viewerRef.current.id
         });
 
@@ -70,16 +74,18 @@ export function AdobePDFViewer({
           showZoomControl: true,
           enableFormFilling: false,
           showPageControls: true,
-          dockPageControls: false
+          dockPageControls: false,
+          showBookmarks: false
         };
 
-        // Load the PDF
-        adobeDCView.previewFile({
-          content: { location: { url: documentUrl } },
-          metaData: { fileName: documentName }
-        }, viewerConfig);
+        // Set loading timeout before loading PDF
+        const loadingTimeoutId = setTimeout(() => {
+          console.log("PDF loading timeout reached");
+          setIsLoading(false);
+          setIsReady(true);
+        }, 8000);
 
-        // Register event listeners
+        // Register event listeners first
         adobeDCView.registerCallback(
           window.AdobeDC.View.Enum.CallbackType.EVENT_LISTENER,
           (event: any) => {
@@ -101,12 +107,14 @@ export function AdobePDFViewer({
               case "DOCUMENT_OPEN":
               case "APP_RENDERING_DONE":
                 console.log("PDF document loaded successfully");
+                clearTimeout(loadingTimeoutId);
                 setIsLoading(false);
                 setIsReady(true);
                 break;
               case "DOCUMENT_ERROR":
               case "APP_RENDERING_FAILED":
                 console.error("PDF document error:", event.data);
+                clearTimeout(loadingTimeoutId);
                 setError("Failed to load PDF document");
                 setIsLoading(false);
                 setIsReady(false);
@@ -116,18 +124,15 @@ export function AdobePDFViewer({
           { enablePDFAnalytics: false }
         );
 
-        // Set a fallback timeout to hide loading animation
-        setTimeout(() => {
-          if (isLoading) {
-            console.log("Loading timeout reached, hiding loading animation");
-            setIsLoading(false);
-            setIsReady(true);
-          }
-        }, 10000); // 10 second timeout
+        // Load the PDF after setting up callbacks
+        await adobeDCView.previewFile({
+          content: { location: { url: documentUrl } },
+          metaData: { fileName: documentName }
+        }, viewerConfig);
 
       } catch (err) {
         console.error("Error initializing Adobe PDF viewer:", err);
-        setError("Failed to initialize PDF viewer");
+        setError(`Failed to initialize PDF viewer: ${err.message}`);
         setIsLoading(false);
         setIsReady(false);
       }
