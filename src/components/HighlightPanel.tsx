@@ -199,37 +199,42 @@ export function HighlightPanel({ highlights, onHighlightClick }: HighlightPanelP
         )}
       </div>
 
-      {/* Highlights List */}
-      <ScrollArea className="flex-1">
-        <div className="p-4 space-y-3">
+      {/* Enhanced Highlights List */}
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="p-4 space-y-4">
           {filteredHighlights.length > 0 ? (
             filteredHighlights.map((highlight) => (
               <div
                 key={highlight.id}
                 className={`
-                  p-3 rounded-lg border-l-4 cursor-pointer transition-all
-                  ${getColorClasses(highlight.color)}
-                  hover:shadow-md hover:scale-[1.01]
+                  p-4 rounded-xl border-l-4 cursor-pointer transition-all duration-200
+                  ${getColorClasses(highlight.color)} backdrop-blur-sm
+                  hover:shadow-lg hover:scale-[1.02] hover:border-l-8
+                  group relative overflow-hidden
                 `}
                 onClick={() => onHighlightClick(highlight)}
               >
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs">
-                      Page {highlight.page}
-                    </Badge>
-                    <div className="flex items-center gap-1">
-                      <div
-                        className={`w-2 h-2 rounded-full ${
-                          highlight.relevanceScore >= 0.9 ? 'bg-green-500' :
-                          highlight.relevanceScore >= 0.8 ? 'bg-yellow-500' : 'bg-orange-500'
-                        }`}
-                      />
-                      <span className="text-xs text-text-tertiary">
-                        {Math.round(highlight.relevanceScore * 100)}%
-                      </span>
+                {/* Animated background gradient */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 transform -skew-x-12"></div>
+                
+                <div className="relative z-10">
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs bg-white/80 backdrop-blur-sm">
+                        Page {highlight.page}
+                      </Badge>
+                      <div className="flex items-center gap-1">
+                        <div
+                          className={`w-3 h-3 rounded-full shadow-sm ${
+                            highlight.relevanceScore >= 0.9 ? 'bg-green-500 shadow-green-200' :
+                            highlight.relevanceScore >= 0.8 ? 'bg-yellow-500 shadow-yellow-200' : 'bg-orange-500 shadow-orange-200'
+                          }`}
+                        />
+                        <span className="text-xs text-text-tertiary font-medium">
+                          {Math.round(highlight.relevanceScore * 100)}%
+                        </span>
+                      </div>
                     </div>
-                  </div>
 
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -275,13 +280,19 @@ export function HighlightPanel({ highlights, onHighlightClick }: HighlightPanelP
                   </DropdownMenu>
                 </div>
 
-                <p className="text-sm text-text-primary mb-2 leading-relaxed">
-                  "{highlight.text}"
-                </p>
+                  <div className="mb-3">
+                    <p className="text-sm text-text-primary leading-relaxed font-medium mb-2 line-clamp-3">
+                      "{highlight.text}"
+                    </p>
+                  </div>
 
-                <p className="text-xs text-text-secondary">
-                  {highlight.explanation}
-                </p>
+                  <div className="flex items-start gap-2">
+                    <div className="w-1 h-4 bg-current opacity-30 rounded-full flex-shrink-0 mt-1"></div>
+                    <p className="text-xs text-text-secondary leading-relaxed italic">
+                      {highlight.explanation}
+                    </p>
+                  </div>
+                </div>
               </div>
             ))
           ) : (

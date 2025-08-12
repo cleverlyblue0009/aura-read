@@ -154,9 +154,9 @@ export function PodcastPanel({
     }
   };
 
-  const handlePlayPause = () => {
+  const handlePlayPause = async () => {
     if (audioSections.length === 0) {
-      handleGenerateAudio();
+      await handleGenerateAudio();
       return;
     }
     
@@ -169,54 +169,69 @@ export function PodcastPanel({
       return;
     }
     
-    setIsPlaying(!isPlaying);
-    
-    if (audioRef.current || audioUrl.startsWith('browser-tts://')) {
-      if (isPlaying) {
-        // Pause audio or speech synthesis
-        if (audioUrl.startsWith('browser-tts://')) {
+    if (isPlaying) {
+      // Pause audio or speech synthesis
+      if (audioUrl.startsWith('browser-tts://')) {
+        window.speechSynthesis?.cancel();
+        setIsPlaying(false);
+      } else if (audioRef.current) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      }
+    } else {
+      // Check if this is browser TTS or real audio
+      if (audioUrl.startsWith('browser-tts://')) {
+        // Use browser speech synthesis
+        if ('speechSynthesis' in window && podcastScript) {
+          // Cancel any existing speech
           window.speechSynthesis?.cancel();
-          setIsPlaying(false);
-        } else if (audioRef.current) {
-          audioRef.current.pause();
-        }
-      } else {
-        // Check if this is browser TTS or real audio
-        if (audioUrl.startsWith('browser-tts://')) {
-          // Use browser speech synthesis
-          if ('speechSynthesis' in window && podcastScript) {
-            const utterance = new SpeechSynthesisUtterance(podcastScript);
-            utterance.rate = 0.9;
-            utterance.pitch = 1.0;
-            utterance.volume = volume[0];
-            
-            utterance.onstart = () => setIsPlaying(true);
-            utterance.onend = () => setIsPlaying(false);
-            utterance.onerror = () => {
-              setIsPlaying(false);
-              toast({
-                title: "Playback failed",
-                description: "Unable to play audio. Please try again.",
-                variant: "destructive"
-              });
-            };
-            
-            window.speechSynthesis.speak(utterance);
-          }
-        } else {
-          // Set the audio source if not already set
-          if (audioRef.current.src !== audioUrl) {
-            audioRef.current.src = audioUrl;
-          }
-          audioRef.current.play().catch(error => {
-            console.error('Error playing audio:', error);
+          
+          const utterance = new SpeechSynthesisUtterance(podcastScript);
+          utterance.rate = 0.9;
+          utterance.pitch = 1.0;
+          utterance.volume = volume[0];
+          
+          utterance.onstart = () => setIsPlaying(true);
+          utterance.onend = () => setIsPlaying(false);
+          utterance.onerror = () => {
+            setIsPlaying(false);
             toast({
               title: "Playback failed",
               description: "Unable to play audio. Please try again.",
               variant: "destructive"
             });
-            setIsPlaying(false);
+          };
+          
+          window.speechSynthesis.speak(utterance);
+        } else {
+          toast({
+            title: "Speech synthesis not available",
+            description: "Your browser doesn't support text-to-speech.",
+            variant: "destructive"
           });
+        }
+      } else if (audioRef.current) {
+        try {
+          // Set the audio source if not already set
+          if (audioRef.current.src !== audioUrl) {
+            audioRef.current.src = audioUrl;
+            // Wait for the audio to load
+            await new Promise((resolve, reject) => {
+              audioRef.current!.onloadeddata = resolve;
+              audioRef.current!.onerror = reject;
+            });
+          }
+          
+          await audioRef.current.play();
+          setIsPlaying(true);
+        } catch (error) {
+          console.error('Error playing audio:', error);
+          toast({
+            title: "Playback failed",
+            description: "Unable to play audio. Please check the audio file.",
+            variant: "destructive"
+          });
+          setIsPlaying(false);
         }
       }
     }
