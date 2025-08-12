@@ -138,6 +138,44 @@ def process_documents_intelligence(pdf_paths: List[str],
     """
     start = time.time()
 
+    # Check for mock mode
+    mock_mode = os.getenv("ENABLE_MOCK_MODE", "false").lower() == "true"
+    
+    if mock_mode and not pdf_paths:
+        # Return mock data for demonstration
+        return {
+            "metadata": {
+                "input_documents": ["mock_document.pdf"],
+                "persona": persona,
+                "job_to_be_done": job,
+                "processing_timestamp": datetime.utcnow().isoformat()
+            },
+            "extracted_sections": [
+                {
+                    "document": "mock_document.pdf",
+                    "section_title": "Introduction to AI in Healthcare",
+                    "importance_rank": 1,
+                    "page_number": 1,
+                    "relevance_score": 0.95
+                },
+                {
+                    "document": "mock_document.pdf", 
+                    "section_title": "Implementation Challenges",
+                    "importance_rank": 2,
+                    "page_number": 3,
+                    "relevance_score": 0.88
+                },
+                {
+                    "document": "mock_document.pdf",
+                    "section_title": "Future Trends and Recommendations",
+                    "importance_rank": 3,
+                    "page_number": 5,
+                    "relevance_score": 0.82
+                }
+            ],
+            "subsection_analysis": []
+        }
+
     # --- per-PDF section extraction ---
     all_sections: List[Dict[str, Any]] = []
     for pdf_path in pdf_paths:
@@ -210,7 +248,28 @@ def find_related_sections(current_page: int,
     Find sections related to the current reading position.
     Returns top related sections with explanations.
     """
+    # Check for mock mode
+    mock_mode = os.getenv("ENABLE_MOCK_MODE", "false").lower() == "true"
+    
     if not all_sections:
+        if mock_mode:
+            # Return mock related sections
+            return [
+                {
+                    "document": "mock_document.pdf",
+                    "section_title": "Related Section 1",
+                    "page_number": current_page + 1,
+                    "relevance_score": 0.85,
+                    "explanation": f"This section is relevant to your role as {persona} working on {job}."
+                },
+                {
+                    "document": "mock_document.pdf",
+                    "section_title": "Related Section 2", 
+                    "page_number": current_page + 2,
+                    "relevance_score": 0.78,
+                    "explanation": f"Contains complementary information that supports your {job.lower()} objectives."
+                }
+            ]
         return []
     
     # Filter out current section and rank by relevance

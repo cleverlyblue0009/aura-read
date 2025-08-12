@@ -51,7 +51,11 @@ export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: p
   // Auto-generate insights when content is available and user context is set
   useEffect(() => {
     if (currentText && currentText.length > 100 && persona && jobToBeDone && insights.length === 0) {
-      handleGenerateInsights();
+      // Add a small delay to avoid too many API calls
+      const timer = setTimeout(() => {
+        handleGenerateInsights();
+      }, 1000);
+      return () => clearTimeout(timer);
     }
   }, [currentText, persona, jobToBeDone]);
 

@@ -11,6 +11,7 @@ class LLMService:
         self.api_key = os.getenv("GEMINI_API_KEY")
         self.model_name = "gemini-2.0-flash-exp"
         self.model = None
+        self.mock_mode = os.getenv("ENABLE_MOCK_MODE", "false").lower() == "true"
         self._initialize_model()
     
     def _initialize_model(self):
@@ -28,7 +29,7 @@ class LLMService:
     
     def is_available(self) -> bool:
         """Check if LLM service is available."""
-        return self.model is not None
+        return self.model is not None or self.mock_mode
     
     async def generate_insights(self, 
                               text: str, 
@@ -37,6 +38,13 @@ class LLMService:
                               context: Optional[str] = None) -> List[Dict[str, Any]]:
         """Generate AI insights for the given text."""
         if not self.is_available():
+            if self.mock_mode:
+                # Return mock insights for demonstration
+                return [
+                    {"type": "takeaway", "content": "This is a key insight about the content that would be relevant for a " + persona + " working on " + job_to_be_done + "."},
+                    {"type": "fact", "content": "Did you know? This content contains important information that could be valuable for your analysis."},
+                    {"type": "connection", "content": "This connects to broader concepts in the field and relates to your specific goals."}
+                ]
             return [{"type": "info", "content": "LLM service not available. Please configure GEMINI_API_KEY."}]
         
         try:
@@ -88,6 +96,8 @@ class LLMService:
                                     insights: List[str]) -> str:
         """Generate a podcast script for the given content."""
         if not self.is_available():
+            if self.mock_mode:
+                return f"Welcome to this AI-generated summary. Today we're discussing content that's relevant for your analysis. The main text covers important topics that connect to your goals. This podcast would normally provide detailed insights and connections to related sections. In a full implementation, you would hear a comprehensive analysis tailored to your specific needs and objectives."
             return "LLM service not available for podcast generation."
         
         try:
