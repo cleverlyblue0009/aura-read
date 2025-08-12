@@ -63,20 +63,98 @@ export function LandingPage({ onStart }: LandingPageProps) {
     }
 
     setIsUploading(true);
+    console.log('Starting upload process with:', {
+      files: selectedFiles.map(f => ({ name: f.name, size: f.size })),
+      persona,
+      jobToBeDone
+    });
+
     try {
-      const uploadedDocuments = await apiService.uploadPDFs(selectedFiles);
+      // Check if backend is available first
+      let backendAvailable = false;
+      try {
+        const healthCheck = await apiService.healthCheck();
+        console.log('Backend health check:', healthCheck);
+        backendAvailable = true;
+      } catch (healthError) {
+        console.error('Backend health check failed:', healthError);
+        console.log('Using fallback mode - backend not available');
+      }
+
+      let uploadedDocuments;
       
-      toast({
-        title: "Upload successful",
-        description: `Successfully uploaded ${uploadedDocuments.length} document(s).`
+      if (backendAvailable) {
+        // Try to use backend
+        try {
+          uploadedDocuments = await apiService.uploadPDFs(selectedFiles);
+          console.log('Upload successful, received documents:', uploadedDocuments);
+        } catch (uploadError) {
+          console.error('Backend upload failed, using fallback:', uploadError);
+          backendAvailable = false;
+        }
+      }
+      
+      if (!backendAvailable) {
+        // Fallback mode - create mock documents
+        console.log('Creating mock documents for demonstration');
+        uploadedDocuments = selectedFiles.map((file, index) => ({
+          id: `mock-${Date.now()}-${index}`,
+          name: file.name,
+          title: file.name.replace('.pdf', ''),
+          outline: [
+            { level: 'H1', text: 'Introduction', page: 1 },
+            { level: 'H2', text: 'Background', page: 2 },
+            { level: 'H2', text: 'Methodology', page: 3 },
+            { level: 'H1', text: 'Results', page: 4 },
+            { level: 'H2', text: 'Discussion', page: 5 },
+            { level: 'H1', text: 'Conclusion', page: 6 }
+          ],
+          language: 'en',
+          upload_timestamp: new Date().toISOString()
+        }));
+        
+        toast({
+          title: "Demo Mode",
+          description: "Backend not available. Running in demonstration mode with mock data.",
+        });
+      }
+      
+      if (!uploadedDocuments || uploadedDocuments.length === 0) {
+        throw new Error('No documents were returned from the upload');
+      }
+      
+      if (backendAvailable) {
+        toast({
+          title: "Upload successful",
+          description: `Successfully uploaded ${uploadedDocuments.length} document(s).`
+        });
+      }
+      
+      console.log('Calling onStart with:', {
+        documents: uploadedDocuments,
+        persona,
+        jobToBeDone
       });
       
       onStart(uploadedDocuments, persona, jobToBeDone);
     } catch (error) {
       console.error('Upload failed:', error);
+      
+      let errorMessage = "Failed to upload and process PDFs. Please try again.";
+      
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch')) {
+          errorMessage = "Cannot connect to the backend server. Please ensure it's running on http://localhost:8000";
+        } else if (error.message.includes('No documents were returned')) {
+          errorMessage = "The backend processed the files but returned no documents. Please check the file format.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       toast({
         title: "Upload failed",
-        description: "Failed to upload and process PDFs. Please try again.",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
