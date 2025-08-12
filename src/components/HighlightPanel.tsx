@@ -26,9 +26,10 @@ import { Highlight } from './PDFReader';
 interface HighlightPanelProps {
   highlights: Highlight[];
   onHighlightClick: (highlight: Highlight) => void;
+  onRemoveHighlight?: (highlightId: string) => void;
 }
 
-export function HighlightPanel({ highlights, onHighlightClick }: HighlightPanelProps) {
+export function HighlightPanel({ highlights, onHighlightClick, onRemoveHighlight }: HighlightPanelProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterColor, setFilterColor] = useState<'all' | 'primary' | 'secondary' | 'tertiary'>('all');
   const [sortBy, setSortBy] = useState<'relevance' | 'page' | 'recent'>('relevance');
@@ -266,16 +267,18 @@ export function HighlightPanel({ highlights, onHighlightClick }: HighlightPanelP
                         Go to Page
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Would remove highlight
-                        }}
-                        className="text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Remove
-                      </DropdownMenuItem>
+                      {onRemoveHighlight && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRemoveHighlight(highlight.id);
+                          }}
+                          className="text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Remove
+                        </DropdownMenuItem>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>

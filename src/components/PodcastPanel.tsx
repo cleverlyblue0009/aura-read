@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
@@ -17,7 +17,10 @@ import {
   Mic,
   Download,
   Settings,
-  Loader2
+  Loader2,
+  RefreshCw,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
 
 interface PodcastPanelProps {
@@ -36,6 +39,18 @@ interface AudioSection {
   transcript: string;
 }
 
+interface AudioState {
+  isLoading: boolean;
+  isPlaying: boolean;
+  isPaused: boolean;
+  hasError: boolean;
+  errorMessage: string;
+  currentTime: number;
+  duration: number;
+  volume: number;
+  isMuted: boolean;
+}
+
 export function PodcastPanel({ 
   documentId, 
   currentPage, 
@@ -43,114 +58,188 @@ export function PodcastPanel({
   relatedSections = [], 
   insights = [] 
 }: PodcastPanelProps) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(180); // 3 minutes
-  const [volume, setVolume] = useState([0.7]);
-  const [isMuted, setIsMuted] = useState(false);
+  const [audioState, setAudioState] = useState<AudioState>({
+    isLoading: false,
+    isPlaying: false,
+    isPaused: false,
+    hasError: false,
+    errorMessage: '',
+    currentTime: 0,
+    duration: 0,
+    volume: 0.7,
+    isMuted: false
+  });
+
   const [showTranscript, setShowTranscript] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [audioSections, setAudioSections] = useState<AudioSection[]>([]);
   const [currentSection, setCurrentSection] = useState(0);
   const [podcastScript, setPodcastScript] = useState<string>('');
   const [audioUrl, setAudioUrl] = useState<string>('');
+  const [generationProgress, setGenerationProgress] = useState<string>('');
 
   const audioRef = useRef<HTMLAudioElement>(null);
+  const speechUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const { toast } = useToast();
 
+  // Enhanced audio state management
+  const updateAudioState = useCallback((updates: Partial<AudioState>) => {
+    setAudioState(prev => ({ ...prev, ...updates }));
+  }, []);
+
   const handleGenerateAudio = async () => {
-    if (!currentText) {
+    if (!currentText || currentText.trim().length < 10) {
       toast({
-        title: "No content available",
-        description: "Please navigate to a section with content to generate a podcast.",
+        title: "Insufficient content",
+        description: "Please navigate to a section with more content to generate a meaningful podcast.",
         variant: "destructive"
       });
       return;
     }
     
-    setIsGenerating(true);
+    updateAudioState({ 
+      isLoading: true, 
+      hasError: false, 
+      errorMessage: '' 
+    });
+    
+    setGenerationProgress('Analyzing content...');
+    
     try {
-      // Generate podcast using backend API
-      const result = await apiService.generatePodcast(
-        currentText,
-        relatedSections,
-        insights
-      );
+      // Enhanced content preparation
+      const contentForPodcast = prepareContentForPodcast(currentText, relatedSections, insights);
+      
+      setGenerationProgress('Generating podcast script...');
+      
+      // Generate podcast using backend API with retry logic
+      let result;
+      let attempts = 0;
+      const maxAttempts = 3;
+      
+      while (attempts < maxAttempts) {
+        try {
+          result = await apiService.generatePodcast(
+            contentForPodcast.text,
+            contentForPodcast.sections,
+            contentForPodcast.insights
+          );
+          break; // Success, exit retry loop
+        } catch (error) {
+          attempts++;
+          if (attempts >= maxAttempts) throw error;
+          
+          setGenerationProgress(`Retrying... (${attempts}/${maxAttempts})`);
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s between retries
+        }
+      }
+      
+      if (!result) {
+        throw new Error('Failed to generate podcast after multiple attempts');
+      }
       
       setPodcastScript(result.script);
-      setAudioUrl(result.audio_url);
+      setGenerationProgress('Generating audio...');
+      
+      // Handle audio URL - could be from backend or browser TTS
+      if (result.audio_url && !result.audio_url.startsWith('browser-tts://')) {
+        // Real audio file from backend
+        const fullAudioUrl = result.audio_url.startsWith('http') 
+          ? result.audio_url 
+          : `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${result.audio_url}`;
+        
+        setAudioUrl(fullAudioUrl);
+        
+        // Verify audio file is accessible
+        try {
+          const response = await fetch(fullAudioUrl, { method: 'HEAD' });
+          if (!response.ok) {
+            throw new Error('Audio file not accessible');
+          }
+        } catch (error) {
+          console.warn('Audio file verification failed, using browser TTS fallback');
+          setAudioUrl('browser-tts://fallback');
+        }
+      } else {
+        // Use browser TTS fallback
+        setAudioUrl('browser-tts://fallback');
+      }
       
       // Create audio sections from the generated content
       const generatedSection: AudioSection = {
         id: '1',
-        title: 'AI-Generated Summary',
-        duration: 180, // Estimated duration
+        title: 'AI-Generated Podcast Summary',
+        duration: estimateAudioDuration(result.script),
         type: 'summary',
         transcript: result.script
       };
       
       setAudioSections([generatedSection]);
-      setDuration(180);
+      updateAudioState({ 
+        duration: generatedSection.duration,
+        isLoading: false 
+      });
+      setGenerationProgress('');
       
       toast({
-        title: "Podcast generated",
-        description: "Your AI-narrated summary is ready to play."
+        title: "Podcast generated successfully",
+        description: "Your AI-narrated summary is ready to play.",
+        variant: "default"
       });
       
     } catch (error) {
       console.error('Failed to generate podcast:', error);
       
-      // Fallback: Create a mock podcast with browser text-to-speech
+      // Enhanced fallback with better error handling
       try {
-        const fallbackScript = `Welcome to your AI-generated podcast summary. 
+        const fallbackScript = createFallbackScript(currentText, insights, relatedSections);
         
-        Based on your current reading: ${currentText?.slice(0, 200)}...
-        
-        Here are the key insights: ${insights.slice(0, 2).join('. ')}
-        
-        Related sections include: ${relatedSections.slice(0, 2).join(', ')}
-        
-        This completes your personalized podcast summary.`;
-        
-        setPodcastScript(fallbackScript);
-        
-        // Generate audio using browser's speech synthesis
-        if ('speechSynthesis' in window) {
-          // Create a mock audio URL since we can't generate actual file
-          setAudioUrl('browser-tts://mock-audio');
-          
-          const generatedSection: AudioSection = {
-            id: '1',
-            title: 'AI-Generated Summary (Browser TTS)',
-            duration: Math.floor(fallbackScript.length / 10), // Estimate duration
-            type: 'summary',
-            transcript: fallbackScript
-          };
-          
-          setAudioSections([generatedSection]);
-          setDuration(generatedSection.duration);
-          
-          toast({
-            title: "Podcast generated (Fallback)",
-            description: "Using browser text-to-speech. Click play to listen."
-          });
-        } else {
-          throw new Error("Speech synthesis not supported");
+        if (!fallbackScript || fallbackScript.length < 50) {
+          throw new Error('Unable to create meaningful content');
         }
         
+        setPodcastScript(fallbackScript);
+        setAudioUrl('browser-tts://fallback');
+        
+        const fallbackSection: AudioSection = {
+          id: '1',
+          title: 'Generated Summary (Browser TTS)',
+          duration: estimateAudioDuration(fallbackScript),
+          type: 'summary',
+          transcript: fallbackScript
+        };
+        
+        setAudioSections([fallbackSection]);
+        updateAudioState({ 
+          duration: fallbackSection.duration,
+          isLoading: false 
+        });
+        
+        toast({
+          title: "Podcast generated with fallback",
+          description: "Using browser text-to-speech. Audio quality may be limited.",
+          variant: "default"
+        });
+        
       } catch (fallbackError) {
+        console.error('Fallback generation failed:', fallbackError);
+        updateAudioState({ 
+          isLoading: false,
+          hasError: true,
+          errorMessage: 'Failed to generate podcast. Please try again with different content.'
+        });
+        
         toast({
           title: "Podcast generation failed",
-          description: "Unable to generate audio. Please check your connection and try again.",
+          description: "Unable to generate audio. Please check your content and try again.",
           variant: "destructive"
         });
-        // Don't fallback to mock data - leave sections empty
+        
         setAudioSections([]);
         setPodcastScript('');
         setAudioUrl('');
       }
     } finally {
-      setIsGenerating(false);
+      setGenerationProgress('');
+      updateAudioState({ isLoading: false });
     }
   };
 
@@ -169,88 +258,197 @@ export function PodcastPanel({
       return;
     }
     
-    if (isPlaying) {
-      // Pause audio or speech synthesis
-      if (audioUrl.startsWith('browser-tts://')) {
-        window.speechSynthesis?.cancel();
-        setIsPlaying(false);
-      } else if (audioRef.current) {
-        audioRef.current.pause();
-        setIsPlaying(false);
-      }
-    } else {
-      // Check if this is browser TTS or real audio
-      if (audioUrl.startsWith('browser-tts://')) {
-        // Use browser speech synthesis
-        if ('speechSynthesis' in window && podcastScript) {
-          // Cancel any existing speech
-          window.speechSynthesis?.cancel();
-          
-          const utterance = new SpeechSynthesisUtterance(podcastScript);
-          utterance.rate = 0.9;
-          utterance.pitch = 1.0;
-          utterance.volume = volume[0];
-          
-          utterance.onstart = () => setIsPlaying(true);
-          utterance.onend = () => setIsPlaying(false);
-          utterance.onerror = () => {
-            setIsPlaying(false);
-            toast({
-              title: "Playback failed",
-              description: "Unable to play audio. Please try again.",
-              variant: "destructive"
-            });
-          };
-          
-          window.speechSynthesis.speak(utterance);
+    try {
+      if (audioState.isPlaying) {
+        // Pause current playback
+        if (audioUrl.startsWith('browser-tts://')) {
+          window.speechSynthesis?.pause();
+          updateAudioState({ isPlaying: false, isPaused: true });
+        } else if (audioRef.current) {
+          audioRef.current.pause();
+          updateAudioState({ isPlaying: false, isPaused: true });
+        }
+      } else {
+        // Start or resume playback
+        if (audioUrl.startsWith('browser-tts://')) {
+          await handleBrowserTTSPlayback();
         } else {
-          toast({
-            title: "Speech synthesis not available",
-            description: "Your browser doesn't support text-to-speech.",
-            variant: "destructive"
-          });
-        }
-      } else if (audioRef.current) {
-        try {
-          // Set the audio source if not already set
-          if (audioRef.current.src !== audioUrl) {
-            audioRef.current.src = audioUrl;
-            // Wait for the audio to load
-            await new Promise((resolve, reject) => {
-              audioRef.current!.onloadeddata = resolve;
-              audioRef.current!.onerror = reject;
-            });
-          }
-          
-          await audioRef.current.play();
-          setIsPlaying(true);
-        } catch (error) {
-          console.error('Error playing audio:', error);
-          toast({
-            title: "Playback failed",
-            description: "Unable to play audio. Please check the audio file.",
-            variant: "destructive"
-          });
-          setIsPlaying(false);
+          await handleAudioFilePlayback();
         }
       }
+    } catch (error) {
+      console.error('Playback error:', error);
+      updateAudioState({ 
+        hasError: true, 
+        errorMessage: 'Playback failed. Please try regenerating the audio.' 
+      });
+      
+      toast({
+        title: "Playback failed",
+        description: "Unable to play audio. Please try regenerating.",
+        variant: "destructive"
+      });
     }
   };
 
+  const handleBrowserTTSPlayback = async () => {
+    if (!('speechSynthesis' in window)) {
+      throw new Error('Speech synthesis not supported');
+    }
+
+    // Cancel any existing speech
+    window.speechSynthesis.cancel();
+    
+    if (audioState.isPaused && speechUtteranceRef.current) {
+      // Resume paused speech
+      window.speechSynthesis.resume();
+      updateAudioState({ isPlaying: true, isPaused: false });
+      return;
+    }
+    
+    // Create new utterance
+    const utterance = new SpeechSynthesisUtterance(podcastScript);
+    
+    // Enhanced voice configuration
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length > 0) {
+      // Try to find a good quality voice
+      const preferredVoice = voices.find(voice => 
+        voice.name.includes('Google') || 
+        voice.name.includes('Microsoft') ||
+        voice.name.includes('Natural') ||
+        voice.localService === false
+      ) || voices[0];
+      
+      utterance.voice = preferredVoice;
+    }
+    
+    // Optimize speech settings
+    utterance.rate = 0.85; // Slightly slower for better comprehension
+    utterance.pitch = 1.0;
+    utterance.volume = audioState.volume;
+    
+    // Set up event handlers
+    utterance.onstart = () => updateAudioState({ isPlaying: true, isPaused: false, hasError: false });
+    utterance.onend = () => updateAudioState({ isPlaying: false, isPaused: false, currentTime: 0 });
+    utterance.onerror = (event) => {
+      console.error('Speech synthesis error:', event);
+      updateAudioState({ 
+        isPlaying: false, 
+        hasError: true, 
+        errorMessage: 'Speech synthesis failed' 
+      });
+    };
+    
+    // Progress tracking for browser TTS (approximate)
+    let progressInterval: NodeJS.Timeout;
+    utterance.onstart = () => {
+      updateAudioState({ isPlaying: true, isPaused: false });
+      
+      progressInterval = setInterval(() => {
+        if (audioState.isPlaying) {
+          updateAudioState({ 
+            currentTime: Math.min(audioState.currentTime + 1, audioState.duration)
+          });
+        }
+      }, 1000);
+    };
+    
+    utterance.onend = () => {
+      clearInterval(progressInterval);
+      updateAudioState({ isPlaying: false, isPaused: false, currentTime: 0 });
+    };
+    
+    speechUtteranceRef.current = utterance;
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const handleAudioFilePlayback = async () => {
+    if (!audioRef.current) return;
+    
+    try {
+      // Set audio source if not already set
+      if (audioRef.current.src !== audioUrl) {
+        audioRef.current.src = audioUrl;
+        
+        // Wait for audio to load with timeout
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Audio load timeout')), 10000);
+          
+          audioRef.current!.onloadeddata = () => {
+            clearTimeout(timeout);
+            resolve(true);
+          };
+          audioRef.current!.onerror = () => {
+            clearTimeout(timeout);
+            reject(new Error('Audio load failed'));
+          };
+        });
+      }
+      
+      await audioRef.current.play();
+      updateAudioState({ isPlaying: true, isPaused: false, hasError: false });
+      
+    } catch (error) {
+      console.error('Audio playback error:', error);
+      throw error;
+    }
+  };
+
+  // Helper functions
+  const prepareContentForPodcast = (text: string, sections: string[], insights: string[]) => {
+    return {
+      text: text.slice(0, 1500), // Limit for better processing
+      sections: sections.slice(0, 3), // Top 3 related sections
+      insights: insights.slice(0, 3) // Top 3 insights
+    };
+  };
+
+  const estimateAudioDuration = (text: string): number => {
+    // Estimate ~150 words per minute for TTS
+    const wordCount = text.split(/\s+/).length;
+    return Math.ceil((wordCount / 150) * 60);
+  };
+
+  const createFallbackScript = (text: string, insights: string[], sections: string[]): string => {
+    const intro = "Welcome to your AI-generated podcast summary.";
+    
+    const content = text.slice(0, 300);
+    const contentSection = content ? `Here's a summary of the current section: ${content}` : '';
+    
+    const insightsSection = insights.length > 0 
+      ? `Key insights include: ${insights.slice(0, 2).join('. ')}`
+      : '';
+    
+    const relatedSection = sections.length > 0 
+      ? `Related sections to explore: ${sections.slice(0, 2).join(', ')}`
+      : '';
+    
+    const outro = "This completes your personalized podcast summary.";
+    
+    return [intro, contentSection, insightsSection, relatedSection, outro]
+      .filter(Boolean)
+      .join('. ');
+  };
+
   const handleStop = () => {
-    setIsPlaying(false);
-    setCurrentTime(0);
+    updateAudioState({ isPlaying: false, isPaused: false, currentTime: 0 });
     setCurrentSection(0);
     
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
     }
+    
+    // Cancel any speech synthesis
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
   };
 
   const handleSeek = (newTime: number[]) => {
     const time = newTime[0];
-    setCurrentTime(time);
+    updateAudioState({ currentTime: time });
     
     if (audioRef.current) {
       audioRef.current.currentTime = time;
@@ -259,8 +457,8 @@ export function PodcastPanel({
 
   const handleVolumeChange = (newVolume: number[]) => {
     const vol = newVolume[0];
-    setVolume(newVolume);
-    setIsMuted(vol === 0);
+    updateAudioState({ volume: vol });
+    updateAudioState({ isMuted: vol === 0 });
     
     if (audioRef.current) {
       audioRef.current.volume = vol;
@@ -268,9 +466,9 @@ export function PodcastPanel({
   };
 
   const toggleMute = () => {
-    setIsMuted(!isMuted);
+    updateAudioState({ isMuted: !audioState.isMuted });
     if (audioRef.current) {
-      audioRef.current.muted = !isMuted;
+      audioRef.current.muted = !audioState.isMuted;
     }
   };
 
@@ -284,7 +482,7 @@ export function PodcastPanel({
     let timeAccumulator = 0;
     for (let i = 0; i < audioSections.length; i++) {
       timeAccumulator += audioSections[i].duration;
-      if (currentTime <= timeAccumulator) {
+      if (audioState.currentTime <= timeAccumulator) {
         return i;
       }
     }
@@ -298,15 +496,15 @@ export function PodcastPanel({
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
-    if (isPlaying && audioSections.length > 0) {
+    if (audioState.isPlaying && audioSections.length > 0) {
       interval = setInterval(() => {
-        setCurrentTime(prev => {
-          const newTime = prev + 1;
-          if (newTime >= duration) {
-            setIsPlaying(false);
-            return duration;
+        updateAudioState(prev => {
+          const newTime = prev.currentTime + 1;
+          if (newTime >= audioState.duration) {
+            updateAudioState({ isPlaying: false, currentTime: audioState.duration });
+            return { ...prev, currentTime: audioState.duration };
           }
-          return newTime;
+          return { ...prev, currentTime: newTime };
         });
       }, 1000);
     }
@@ -314,7 +512,7 @@ export function PodcastPanel({
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isPlaying, duration, audioSections.length]);
+  }, [audioState.isPlaying, audioState.duration, audioSections.length]);
 
   return (
     <div className="h-full flex flex-col">
@@ -344,10 +542,10 @@ export function PodcastPanel({
             
             <Button
               onClick={handleGenerateAudio}
-              disabled={isGenerating || !documentId}
+              disabled={audioState.isLoading || !documentId}
               className="w-full gap-2"
             >
-              {isGenerating ? (
+              {audioState.isLoading ? (
                 <>
                   <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                   Generating Audio...
@@ -370,8 +568,8 @@ export function PodcastPanel({
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    const newTime = Math.max(0, currentTime - 15);
-                    setCurrentTime(newTime);
+                    const newTime = Math.max(0, audioState.currentTime - 15);
+                    updateAudioState({ currentTime: newTime });
                   }}
                   aria-label="Skip back 15 seconds"
                 >
@@ -381,9 +579,9 @@ export function PodcastPanel({
                 <Button
                   onClick={handlePlayPause}
                   className="h-12 w-12 rounded-full"
-                  aria-label={isPlaying ? 'Pause' : 'Play'}
+                  aria-label={audioState.isPlaying ? 'Pause' : 'Play'}
                 >
-                  {isPlaying ? (
+                  {audioState.isPlaying ? (
                     <Pause className="h-5 w-5" />
                   ) : (
                     <Play className="h-5 w-5" />
@@ -394,8 +592,8 @@ export function PodcastPanel({
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    const newTime = Math.min(duration, currentTime + 15);
-                    setCurrentTime(newTime);
+                    const newTime = Math.min(audioState.duration, audioState.currentTime + 15);
+                    updateAudioState({ currentTime: newTime });
                   }}
                   aria-label="Skip forward 15 seconds"
                 >
@@ -406,16 +604,16 @@ export function PodcastPanel({
               {/* Progress Bar */}
               <div className="space-y-2">
                 <Slider
-                  value={[currentTime]}
+                  value={[audioState.currentTime]}
                   onValueChange={handleSeek}
-                  max={duration}
+                  max={audioState.duration}
                   step={1}
                   className="w-full"
                 />
                 
                 <div className="flex justify-between text-xs text-text-tertiary">
-                  <span>{formatTime(currentTime)}</span>
-                  <span>{formatTime(duration)}</span>
+                  <span>{formatTime(audioState.currentTime)}</span>
+                  <span>{formatTime(audioState.duration)}</span>
                 </div>
               </div>
 
@@ -427,7 +625,7 @@ export function PodcastPanel({
                   onClick={toggleMute}
                   className="p-1"
                 >
-                  {isMuted || volume[0] === 0 ? (
+                  {audioState.isMuted || audioState.volume === 0 ? (
                     <VolumeX className="h-4 w-4" />
                   ) : (
                     <Volume2 className="h-4 w-4" />
@@ -435,7 +633,7 @@ export function PodcastPanel({
                 </Button>
                 
                 <Slider
-                  value={isMuted ? [0] : volume}
+                  value={audioState.isMuted ? [0] : [audioState.volume]}
                   onValueChange={handleVolumeChange}
                   max={1}
                   step={0.1}
@@ -545,17 +743,16 @@ export function PodcastPanel({
         ref={audioRef}
         onLoadedMetadata={() => {
           if (audioRef.current) {
-            setDuration(audioRef.current.duration);
+            updateAudioState({ duration: audioRef.current.duration });
           }
         }}
         onTimeUpdate={() => {
           if (audioRef.current) {
-            setCurrentTime(audioRef.current.currentTime);
+            updateAudioState({ currentTime: audioRef.current.currentTime });
           }
         }}
         onEnded={() => {
-          setIsPlaying(false);
-          setCurrentTime(0);
+          updateAudioState({ isPlaying: false, currentTime: 0 });
         }}
       />
     </div>
