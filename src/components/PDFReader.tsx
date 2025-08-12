@@ -54,6 +54,7 @@ function HybridPDFViewer({
     </div>
   );
 }
+
 import { ThemeToggle } from './ThemeToggle';
 import { AccessibilityPanel } from './AccessibilityPanel';
 import { InsightsPanel } from './InsightsPanel';
@@ -242,31 +243,13 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
         currentDocument?.id
       );
       
-      setCurrentInsights(insights);
-      
-      // Auto-switch to insights panel if not already there
-      if (activeRightPanel !== 'insights') {
-        setActiveRightPanel('insights');
-      }
+      setCurrentInsights(insights.map(insight => ({
+        type: insight.type,
+        content: insight.content
+      })));
       
     } catch (error) {
       console.error('Failed to generate insights for selected text:', error);
-    }
-  };
-
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file && file.type === 'application/pdf') {
-      // In a real implementation, you would upload the file and extract outline
-      const newDoc: PDFDocument = {
-        id: `doc-${Date.now()}`,
-        name: file.name,
-        url: URL.createObjectURL(file),
-        outline: [] // Would be extracted from the PDF
-      };
-      setCurrentDocument(newDoc);
-      setCurrentPage(1);
-      setHighlights([]);
     }
   };
 
@@ -333,31 +316,32 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
           </div>
 
           <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setLeftSidebarOpen(!leftSidebarOpen)}
-            className="gap-2 hover:bg-surface-hover"
-            aria-label="Toggle outline"
-          >
-            <Menu className="h-4 w-4" />
-            Outline
-          </Button>
-          
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setRightPanelOpen(!rightPanelOpen)}
-            className="gap-2 hover:bg-surface-hover"
-            aria-label="Toggle utilities"
-          >
-            <Settings className="h-4 w-4" />
-            Tools
-          </Button>
-          
-          <div className="h-6 w-px bg-border-subtle mx-2" />
-          
-          <ThemeToggle />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setLeftSidebarOpen(!leftSidebarOpen)}
+              className="gap-2 hover:bg-surface-hover"
+              aria-label="Toggle outline"
+            >
+              <Menu className="h-4 w-4" />
+              Outline
+            </Button>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setRightPanelOpen(!rightPanelOpen)}
+              className="gap-2 hover:bg-surface-hover"
+              aria-label="Toggle utilities"
+            >
+              <Settings className="h-4 w-4" />
+              Tools
+            </Button>
+            
+            <div className="h-6 w-px bg-border-subtle mx-2" />
+            
+            <ThemeToggle />
+          </div>
         </div>
         
         {/* Reading Progress Bar */}

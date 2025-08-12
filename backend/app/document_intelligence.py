@@ -3,8 +3,8 @@ import re
 import time
 from datetime import datetime
 from typing import Any, Dict, List
-from outline_core import extract_outline_blocks, LineBlock
-import scoring
+from .outline_core import extract_outline_blocks, LineBlock
+from . import scoring
 
 # --------------------------------------------------------------------------------------
 # Build sections: heading text + concatenated body until next heading

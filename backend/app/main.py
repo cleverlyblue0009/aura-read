@@ -11,10 +11,10 @@ from pydantic import BaseModel
 import json
 
 # Local imports
-from pdf_analyzer import analyze_pdf, extract_full_text
-from document_intelligence import process_documents_intelligence, find_related_sections
-from llm_services import LLMService
-from tts_service import TTSService
+from .pdf_analyzer import analyze_pdf, extract_full_text
+from .document_intelligence import process_documents_intelligence, find_related_sections
+from .llm_services import LLMService
+from .tts_service import TTSService
 
 app = FastAPI(title="DocuSense API", version="1.0.0")
 
