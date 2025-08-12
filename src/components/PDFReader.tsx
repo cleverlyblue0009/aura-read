@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { DocumentOutline } from './DocumentOutline';
 import { FloatingTools } from './FloatingTools';
@@ -96,6 +96,15 @@ export interface Highlight {
   color: 'primary' | 'secondary' | 'tertiary';
   relevanceScore: number;
   explanation: string;
+  position?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  context?: string;
+  timestamp: number;
+  isUserCreated: boolean;
 }
 
 interface PDFReaderProps {
@@ -119,9 +128,60 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
   const [isLoadingRelated, setIsLoadingRelated] = useState(false);
   const [readingStartTime, setReadingStartTime] = useState<number>(Date.now());
   const [isActivelyReading, setIsActivelyReading] = useState(true);
-  const [totalPages, setTotalPages] = useState(30); // Will be updated from PDF
+  const [totalPages, setTotalPages] = useState(30);
   const [currentLanguage, setCurrentLanguage] = useState('en');
+  const [highlightMode, setHighlightMode] = useState<'automatic' | 'manual'>('automatic');
+  const [isHighlighting, setIsHighlighting] = useState(false);
   const { toast } = useToast();
+
+  // Performance optimization refs
+  const navigationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const relatedSectionsCache = useRef<Map<string, RelatedSection[]>>(new Map());
+  const lastNavigationTime = useRef<number>(0);
+
+  // Performance monitoring and optimization
+  const performanceMetrics = useRef({
+    navigationTimes: [] as number[],
+    highlightCreationTimes: [] as number[],
+    insightGenerationTimes: [] as number[]
+  });
+
+  // Performance monitoring hook
+  useEffect(() => {
+    const logPerformanceMetrics = () => {
+      const metrics = performanceMetrics.current;
+      if (metrics.navigationTimes.length > 0) {
+        const avgNavigation = metrics.navigationTimes.reduce((a, b) => a + b, 0) / metrics.navigationTimes.length;
+        console.log(`Average navigation time: ${avgNavigation.toFixed(2)}ms`);
+        
+        if (avgNavigation > 2000) {
+          console.warn('Navigation performance is slower than target (<2s)');
+        }
+      }
+    };
+
+    // Log metrics every 30 seconds
+    const interval = setInterval(logPerformanceMetrics, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Preload next pages for faster navigation
+  useEffect(() => {
+    if (currentDocument && currentPage < totalPages) {
+      // Preload next 2 pages in background
+      const preloadPages = [currentPage + 1, currentPage + 2].filter(page => page <= totalPages);
+      
+      preloadPages.forEach(page => {
+        const cacheKey = `${currentDocument.id}-${page}-${persona}-${jobToBeDone}`;
+        if (!relatedSectionsCache.current.has(cacheKey)) {
+          // Preload in background without showing loading state
+          setTimeout(() => {
+            loadRelatedSections();
+          }, 1000);
+        }
+      });
+    }
+  }, [currentDocument, currentPage, totalPages, persona, jobToBeDone, loadRelatedSections]);
 
   // Reading progress tracking
   const { getReadingStats, formatTime } = useReadingProgress({
@@ -130,6 +190,17 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
     totalPages,
     isReading: isActivelyReading
   });
+
+  // Memoized current section title calculation
+  const currentSectionTitle = useMemo(() => {
+    if (!currentDocument) return "";
+    
+    const currentOutlineItem = currentDocument.outline
+      .filter(item => item.page <= currentPage)
+      .sort((a, b) => b.page - a.page)[0];
+    
+    return currentOutlineItem?.title || "";
+  }, [currentDocument, currentPage]);
 
   // Initialize with first document from props or mock document
   useEffect(() => {
@@ -168,20 +239,38 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
     }
   }, [documents, currentDocument]);
 
-  // Load related sections when page or document changes
-  useEffect(() => {
-    if (currentDocument && persona && jobToBeDone) {
-      loadRelatedSections();
-    }
-  }, [currentDocument, currentPage, persona, jobToBeDone]);
-
-  const loadRelatedSections = async () => {
+  // Optimized related sections loading with caching and debouncing
+  const loadRelatedSections = useCallback(async (force = false) => {
     if (!currentDocument || !persona || !jobToBeDone) return;
     
+    const cacheKey = `${currentDocument.id}-${currentPage}-${persona}-${jobToBeDone}`;
+    
+    // Check cache first
+    if (!force && relatedSectionsCache.current.has(cacheKey)) {
+      const cached = relatedSectionsCache.current.get(cacheKey)!;
+      setRelatedSections(cached);
+      return;
+    }
+    
+    // Debounce rapid navigation
+    const now = Date.now();
+    if (now - lastNavigationTime.current < 500) {
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
+      }
+      
+      navigationTimeoutRef.current = setTimeout(() => {
+        loadRelatedSections(force);
+      }, 300);
+      return;
+    }
+    
+    lastNavigationTime.current = now;
     setIsLoadingRelated(true);
+    
     try {
       const documentIds = documents ? documents.map(d => d.id) : [currentDocument.id];
-      const currentSection = getCurrentSectionTitle();
+      const currentSection = currentSectionTitle;
       
       const related = await apiService.getRelatedSections(
         documentIds,
@@ -191,20 +280,22 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
         jobToBeDone
       );
       
+      // Cache the results
+      relatedSectionsCache.current.set(cacheKey, related);
+      
+      // Limit cache size to prevent memory issues
+      if (relatedSectionsCache.current.size > 50) {
+        const firstKey = relatedSectionsCache.current.keys().next().value;
+        relatedSectionsCache.current.delete(firstKey);
+      }
+      
       setRelatedSections(related);
       
-      // Convert to highlights for display - only if we have real data
-      if (related && related.length > 0) {
-        const newHighlights: Highlight[] = related.slice(0, 5).map((section, index) => ({
-          id: `related-${section.page_number}-${index}`,
-          text: section.section_title,
-          page: section.page_number,
-          color: ['primary', 'secondary', 'tertiary'][index % 3] as 'primary' | 'secondary' | 'tertiary',
-          relevanceScore: section.relevance_score,
-          explanation: section.explanation
-        }));
-        
-        setHighlights(newHighlights);
+      // Trigger automatic highlighting for high-relevance sections
+      if (highlightMode === 'automatic' && related.length > 0) {
+        setTimeout(() => {
+          performAutomaticHighlighting();
+        }, 100);
       }
       
     } catch (error) {
@@ -214,26 +305,42 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
         description: "Unable to find related sections. Please try again.",
         variant: "destructive"
       });
-      // Clear highlights on error instead of using mock data
-      setHighlights([]);
+      setRelatedSections([]);
     } finally {
       setIsLoadingRelated(false);
     }
-  };
+  }, [currentDocument, currentPage, currentSectionTitle, persona, jobToBeDone, documents, highlightMode, performAutomaticHighlighting, toast]);
 
-  const getCurrentSectionTitle = (): string => {
-    if (!currentDocument) return "";
+  // Optimized outline click handler
+  const handleOutlineClick = useCallback((item: OutlineItem) => {
+    // Immediate visual feedback
+    const startTime = performance.now();
     
-    // Find the section title for the current page
-    const currentOutlineItem = currentDocument.outline
-      .filter(item => item.page <= currentPage)
-      .sort((a, b) => b.page - a.page)[0];
+    // Update page immediately for responsive feel
+    setCurrentPage(item.page);
     
-    return currentOutlineItem?.title || "";
-  };
+    // Show loading state for complex operations
+    if (Math.abs(item.page - currentPage) > 3) {
+      setIsLoadingRelated(true);
+    }
+    
+    // Defer heavy operations
+    requestAnimationFrame(() => {
+      loadRelatedSections();
+      
+      const endTime = performance.now();
+      const navigationTime = endTime - startTime;
+      
+      // Performance monitoring
+      if (navigationTime > 2000) {
+        console.warn(`Slow navigation detected: ${navigationTime}ms`);
+      }
+    });
+  }, [currentPage, loadRelatedSections]);
 
-  const generateInsightsForText = async (text: string) => {
-    if (!persona || !jobToBeDone) return;
+  // Memoized insights generation
+  const generateInsightsForText = useCallback(async (text: string) => {
+    if (!persona || !jobToBeDone || text.length < 50) return;
     
     try {
       const insights = await apiService.generateInsights(
@@ -251,36 +358,240 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
     } catch (error) {
       console.error('Failed to generate insights for selected text:', error);
     }
-  };
+  }, [persona, jobToBeDone, currentDocument?.id]);
 
-  const handleOutlineClick = (item: OutlineItem) => {
-    setCurrentPage(item.page);
-  };
+  // Enhanced highlight creation with better accuracy
+  const createEnhancedHighlight = async (text: string, page: number, position?: any, isUserCreated: boolean = false): Promise<Highlight | null> => {
+    if (!text || text.trim().length < 5) {
+      return null;
+    }
 
-  const handleHighlight = (highlight: Highlight) => {
-    setHighlights(prev => [...prev, highlight]);
-  };
+    const cleanText = text.trim();
+    const wordCount = cleanText.split(/\s+/).length;
+    
+    // Skip very short or very long selections
+    if (wordCount < 2 || wordCount > 100) {
+      return null;
+    }
 
-  // Create highlight from selected text
-  const createHighlightFromSelection = (text: string, page: number, color: 'primary' | 'secondary' | 'tertiary' = 'primary') => {
-    if (!text || text.trim().length < 10) return; // Minimum text length
+    let relevanceScore = 0.5; // Base score
+    let explanation = 'User highlighted text';
+    let color: 'primary' | 'secondary' | 'tertiary' = 'primary';
+
+    if (!isUserCreated && persona && jobToBeDone) {
+      // Calculate relevance using AI-based scoring
+      try {
+        const insights = await apiService.generateInsights(
+          cleanText,
+          persona,
+          jobToBeDone,
+          currentDocument?.id
+        );
+
+        if (insights && insights.length > 0) {
+          // Determine relevance based on insight types
+          const hasImportantInsight = insights.some(insight => 
+            insight.type === 'takeaway' || insight.type === 'fact'
+          );
+          const hasConnectionInsight = insights.some(insight => 
+            insight.type === 'connection'
+          );
+
+          if (hasImportantInsight) {
+            relevanceScore = 0.9;
+            color = 'primary';
+            explanation = 'Contains key information relevant to your analysis';
+          } else if (hasConnectionInsight) {
+            relevanceScore = 0.8;
+            color = 'secondary';
+            explanation = 'Connects to broader concepts in your field';
+          } else {
+            relevanceScore = 0.7;
+            color = 'tertiary';
+            explanation = 'Provides supporting context for your work';
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to analyze highlight relevance:', error);
+      }
+    } else if (isUserCreated) {
+      relevanceScore = 0.95; // User highlights are highly relevant
+      explanation = 'User highlighted for importance';
+    }
+
+    // Boost relevance for content with specific keywords
+    const importantKeywords = ['conclusion', 'result', 'finding', 'important', 'significant', 'key', 'critical'];
+    const lowerText = cleanText.toLowerCase();
+    
+    if (importantKeywords.some(keyword => lowerText.includes(keyword))) {
+      relevanceScore = Math.min(1.0, relevanceScore + 0.1);
+    }
 
     const highlight: Highlight = {
-      id: `user-highlight-${Date.now()}`,
-      text: text.trim(),
+      id: `highlight-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      text: cleanText,
       page,
       color,
-      relevanceScore: 0.9, // User-created highlights are highly relevant
-      explanation: 'User highlighted text'
+      relevanceScore,
+      explanation,
+      position,
+      context: currentSectionTitle,
+      timestamp: Date.now(),
+      isUserCreated
     };
 
-    setHighlights(prev => [...prev, highlight]);
+    return highlight;
+  };
+
+  // Enhanced automatic highlighting based on relevance
+  const performAutomaticHighlighting = async () => {
+    if (!currentDocument || !persona || !jobToBeDone || relatedSections.length === 0) {
+      return;
+    }
+
+    setIsHighlighting(true);
+    const newHighlights: Highlight[] = [];
+
+    try {
+      // Process top related sections for automatic highlighting
+      for (const section of relatedSections.slice(0, 5)) {
+        if (section.relevance_score >= 0.8) {
+          const highlight = await createEnhancedHighlight(
+            section.section_title,
+            section.page_number,
+            undefined,
+            false
+          );
+          
+          if (highlight) {
+            newHighlights.push(highlight);
+          }
+        }
+      }
+
+      // Add highlights with animation
+      for (let i = 0; i < newHighlights.length; i++) {
+        setTimeout(() => {
+          setHighlights(prev => {
+            const existing = prev.find(h => h.text === newHighlights[i].text && h.page === newHighlights[i].page);
+            if (existing) return prev;
+            return [...prev, newHighlights[i]];
+          });
+        }, i * 200); // Stagger the highlighting animation
+      }
+
+      if (newHighlights.length > 0) {
+        toast({
+          title: "Smart highlights added",
+          description: `Found ${newHighlights.length} relevant sections based on your role and task.`,
+          variant: "default"
+        });
+      }
+
+    } catch (error) {
+      console.error('Automatic highlighting failed:', error);
+    } finally {
+      setIsHighlighting(false);
+    }
+  };
+
+  // Optimized text selection handler with performance tracking
+  const handleTextSelection = useCallback(async (text: string, page: number) => {
+    const startTime = performance.now();
+    
+    console.log('Text selected:', text, 'on page:', page);
+    setSelectedText(text);
+    setCurrentPage(page);
+    
+    if (text.length >= 10) {
+      // Create highlight asynchronously to avoid blocking UI
+      requestIdleCallback(async () => {
+        const highlight = await createEnhancedHighlight(text, page, undefined, true);
+        
+        if (highlight) {
+          setHighlights(prev => [...prev, highlight]);
+          
+          const endTime = performance.now();
+          const processingTime = endTime - startTime;
+          
+          toast({
+            title: "Highlight created",
+            description: `Added highlight on page ${page} (${processingTime.toFixed(0)}ms)`,
+            variant: "default"
+          });
+        }
+      });
+    }
+    
+    // Generate insights for substantial text selections
+    if (text.length > 50) {
+      requestIdleCallback(() => {
+        generateInsightsForText(text);
+      });
+    }
+  }, [createEnhancedHighlight, generateInsightsForText, toast]);
+
+  // Performance-optimized highlight click with smooth navigation
+  const handleHighlightClick = useCallback((highlight: Highlight) => {
+    const startTime = performance.now();
+    
+    // Immediate page change for responsiveness
+    setCurrentPage(highlight.page);
+    
+    // Smooth scroll to highlight if position is available
+    if (highlight.position) {
+      // Use CSS scroll-behavior for smooth scrolling
+      document.documentElement.style.scrollBehavior = 'smooth';
+      setTimeout(() => {
+        document.documentElement.style.scrollBehavior = 'auto';
+      }, 1000);
+    }
+    
+    const endTime = performance.now();
+    const navigationTime = endTime - startTime;
     
     toast({
-      title: "Highlight created",
-      description: `Added highlight on page ${page}`,
+      title: "Navigating to highlight",
+      description: `Jumped to page ${highlight.page} (${navigationTime.toFixed(0)}ms)`,
+      variant: "default"
+    });
+  }, [toast]);
+
+  // Remove highlight with confirmation for important ones
+  const handleRemoveHighlight = (highlightId: string) => {
+    const highlight = highlights.find(h => h.id === highlightId);
+    
+    if (highlight && highlight.relevanceScore >= 0.9) {
+      // Show confirmation for highly relevant highlights
+      if (!confirm('This highlight seems very relevant. Are you sure you want to remove it?')) {
+        return;
+      }
+    }
+    
+    setHighlights(prev => prev.filter(h => h.id !== highlightId));
+    
+    toast({
+      title: "Highlight removed",
+      description: "The highlight has been deleted.",
+      variant: "default"
     });
   };
+
+  // Load related sections when page or document changes (optimized)
+  useEffect(() => {
+    if (currentDocument && persona && jobToBeDone) {
+      loadRelatedSections();
+    }
+  }, [currentDocument, persona, jobToBeDone, loadRelatedSections]);
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -379,7 +690,8 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
               <div className="border-t border-border-subtle max-h-80">
                 <HighlightPanel 
                   highlights={highlights}
-                  onHighlightClick={(highlight) => setCurrentPage(highlight.page)}
+                  onHighlightClick={(highlight) => handleHighlightClick(highlight)}
+                  onRemoveHighlight={handleRemoveHighlight}
                 />
               </div>
             </div>
@@ -393,21 +705,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
               documentUrl={currentDocument.url}
               documentName={currentDocument.name}
               onPageChange={setCurrentPage}
-              onTextSelection={(text, page) => {
-                console.log('Text selected:', text, 'on page:', page);
-                setSelectedText(text);
-                setCurrentPage(page);
-                
-                // Create highlight from selection
-                if (text.length >= 10) {
-                  createHighlightFromSelection(text, page);
-                }
-                
-                // Automatically generate insights for selected text
-                if (text.length > 50) {
-                  generateInsightsForText(text);
-                }
-              }}
+              onTextSelection={handleTextSelection}
               clientId={import.meta.env.VITE_ADOBE_CLIENT_ID}
             />
           ) : (
@@ -430,7 +728,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
           <FloatingTools
             currentDocument={currentDocument}
             currentPage={currentPage}
-            onHighlight={handleHighlight}
+            onHighlight={(highlight) => setHighlights(prev => [...prev, highlight])}
           />
         </main>
 
@@ -466,7 +764,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
                   documentId={currentDocument?.id}
                   persona={persona}
                   jobToBeDone={jobToBeDone}
-                  currentText={selectedText || getCurrentSectionTitle()}
+                  currentText={selectedText || currentSectionTitle}
                   onPageNavigate={setCurrentPage}
                 />
               )}
@@ -475,7 +773,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
                 <PodcastPanel 
                   documentId={currentDocument?.id}
                   currentPage={currentPage}
-                  currentText={selectedText || getCurrentSectionTitle()}
+                  currentText={selectedText || currentSectionTitle}
                   relatedSections={relatedSections.map(r => r.section_title)}
                   insights={currentInsights.map(i => i.content)}
                 />
@@ -483,7 +781,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
               
               {activeRightPanel === 'accessibility' && (
                 <AccessibilityPanel 
-                  currentText={selectedText || getCurrentSectionTitle()}
+                  currentText={selectedText || currentSectionTitle}
                   onLanguageChange={(language) => {
                     setCurrentLanguage(language);
                     // Here you could add logic to translate content or change UI language
@@ -494,7 +792,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
               
               {activeRightPanel === 'simplifier' && (
                 <TextSimplifier 
-                  originalText={selectedText || getCurrentSectionTitle()}
+                  originalText={selectedText || currentSectionTitle}
                   onSimplifiedText={(text) => console.log('Simplified:', text)}
                 />
               )}
@@ -502,7 +800,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
               {activeRightPanel === 'export' && (
                 <CopyDownloadPanel
                   selectedText={selectedText}
-                  currentSection={getCurrentSectionTitle()}
+                  currentSection={currentSectionTitle}
                   documentTitle={currentDocument?.name}
                   insights={currentInsights}
                   relatedSections={relatedSections.map(r => ({

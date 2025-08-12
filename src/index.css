@@ -457,24 +457,91 @@
     box-shadow: 0 0 0 2px hsl(var(--focus-ring));
   }
 
-  /* Custom scrollbar styling */
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-  }
+  /* Enhanced scrolling and custom scrollbars */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border-moderate)) hsl(var(--background-secondary));
+}
 
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: hsl(var(--background-secondary));
-    border-radius: 3px;
-  }
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
 
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: hsl(var(--border-moderate));
-    border-radius: 3px;
-  }
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: hsl(var(--background-secondary));
+  border-radius: 4px;
+}
 
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--border-strong));
-  }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(var(--border-moderate));
+  border-radius: 4px;
+  transition: background-color var(--transition-fast);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--border-strong));
+}
+
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: hsl(var(--background-secondary));
+}
+
+/* Ensure content doesn't disappear during scrolling */
+.scroll-container {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+
+.scroll-content {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 1px; /* Prevent content cutoff */
+}
+
+/* Smooth scrolling behavior */
+.smooth-scroll {
+  scroll-behavior: smooth;
+}
+
+/* Fix for disappearing content in flex containers */
+.flex-scroll-container {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.flex-scroll-content {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* Enhanced scroll area styles for better visibility */
+.enhanced-scroll-area {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius);
+}
+
+.enhanced-scroll-area .scroll-viewport {
+  height: 100%;
+  width: 100%;
+  border-radius: inherit;
+}
+
+/* Prevent content from being cut off at edges */
+.scroll-padding {
+  padding: 2px;
+}
+
+/* Ensure proper scrolling in nested containers */
+.nested-scroll {
+  contain: layout style paint;
+}
 
   /* Text selection styling */
   ::selection {
