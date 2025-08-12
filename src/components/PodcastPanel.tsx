@@ -59,7 +59,7 @@ export function PodcastPanel({
   const { toast } = useToast();
 
   const handleGenerateAudio = async () => {
-    if (!currentText) {
+    if (!currentText && !documentId) {
       toast({
         title: "No content available",
         description: "Please navigate to a section with content to generate a podcast.",

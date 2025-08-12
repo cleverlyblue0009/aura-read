@@ -12,6 +12,7 @@ class TTSService:
         self.speech_key = os.getenv("AZURE_SPEECH_KEY")
         self.speech_region = os.getenv("AZURE_SPEECH_REGION", "eastus")
         self.speech_config = None
+        self.mock_mode = os.getenv("ENABLE_MOCK_MODE", "false").lower() == "true"
         self._initialize_service()
     
     def _initialize_service(self):
@@ -33,11 +34,14 @@ class TTSService:
     
     def is_available(self) -> bool:
         """Check if TTS service is available."""
-        return self.speech_config is not None
+        return self.speech_config is not None or self.mock_mode
     
     async def generate_audio(self, text: str) -> Optional[str]:
         """Generate audio file from text and return filename."""
         if not self.is_available():
+            if self.mock_mode:
+                # Return a mock audio filename for demonstration
+                return "mock_audio_demo.mp3"
             print("TTS service not available")
             return None
         

@@ -114,6 +114,16 @@ export function AccessibilityPanel({ currentText, onFontSizeChange, onColorBlind
       utterance.pitch = 1.0;
       utterance.volume = 1.0;
       
+      // Set language based on selection
+      const languageMap: { [key: string]: string } = {
+        'en': 'en-US',
+        'es': 'es-ES',
+        'fr': 'fr-FR',
+        'de': 'de-DE',
+        'zh': 'zh-CN'
+      };
+      utterance.lang = languageMap[selectedLanguage] || 'en-US';
+      
       utterance.onstart = () => {
         setVoiceReading(true);
         setCurrentUtterance(utterance);

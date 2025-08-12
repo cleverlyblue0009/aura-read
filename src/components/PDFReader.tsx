@@ -82,6 +82,21 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
   useEffect(() => {
     if (documents && documents.length > 0 && !currentDocument) {
       setCurrentDocument(documents[0]);
+    } else if (!currentDocument && (!documents || documents.length === 0)) {
+      // Create a mock document for demonstration
+      const mockDoc: PDFDocument = {
+        id: 'mock-doc-1',
+        name: 'Sample Research Paper.pdf',
+        url: '/sample.pdf',
+        outline: [
+          { id: '1', title: 'Abstract', level: 1, page: 1 },
+          { id: '2', title: 'Introduction', level: 1, page: 2 },
+          { id: '3', title: 'Methodology', level: 1, page: 3 },
+          { id: '4', title: 'Results', level: 1, page: 4 },
+          { id: '5', title: 'Conclusion', level: 1, page: 5 }
+        ]
+      };
+      setCurrentDocument(mockDoc);
     }
   }, [documents, currentDocument]);
 
@@ -122,6 +137,9 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
         }));
         
         setHighlights(newHighlights);
+      } else {
+        // Clear highlights if no related sections found
+        setHighlights([]);
       }
       
     } catch (error) {

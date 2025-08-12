@@ -58,6 +58,14 @@ export function AdobePDFViewer({
           divId: viewerRef.current.id
         });
 
+        // If no valid client ID, use fallback viewer
+        if (!clientId || clientId === "test_client_id") {
+          console.log("Using fallback PDF viewer due to invalid client ID");
+          setIsLoading(false);
+          setIsReady(true);
+          return;
+        }
+
         adobeViewRef.current = adobeDCView;
 
         // PDF viewing configuration
@@ -123,7 +131,7 @@ export function AdobePDFViewer({
             setIsLoading(false);
             setIsReady(true);
           }
-        }, 10000); // 10 second timeout
+        }, 5000); // 5 second timeout
 
       } catch (err) {
         console.error("Error initializing Adobe PDF viewer:", err);
@@ -181,12 +189,17 @@ export function AdobePDFViewer({
         </div>
       )}
       
-      <div 
-        id={viewerId}
-        ref={viewerRef}
-        className="w-full h-full"
-        style={{ minHeight: '600px' }}
-      />
+      {/* Show fallback viewer if Adobe API is not available or client ID is invalid */}
+      {(!clientId || clientId === "test_client_id") && !isLoading ? (
+        <FallbackPDFViewer documentUrl={documentUrl} documentName={documentName} />
+      ) : (
+        <div 
+          id={viewerId}
+          ref={viewerRef}
+          className="w-full h-full"
+          style={{ minHeight: '600px' }}
+        />
+      )}
     </div>
   );
 }

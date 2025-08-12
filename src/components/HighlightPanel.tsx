@@ -200,7 +200,7 @@ export function HighlightPanel({ highlights, onHighlightClick }: HighlightPanelP
       </div>
 
       {/* Highlights List */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 h-full">
         <div className="p-4 space-y-3">
           {filteredHighlights.length > 0 ? (
             filteredHighlights.map((highlight) => (
