@@ -248,7 +248,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
       
       setHighlights(sampleHighlights);
     }
-  }, [documents, currentDocument]);
+  }, [documents]);
 
   // Optimized related sections loading with caching and debouncing
   const loadRelatedSections = useCallback(async (force = false) => {
