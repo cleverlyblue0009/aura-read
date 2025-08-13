@@ -33,9 +33,10 @@ interface InsightsPanelProps {
   jobToBeDone?: string;
   currentText?: string;
   onPageNavigate?: (page: number) => void;
+  regenerateSignal?: number;
 }
 
-export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: propJobToBeDone, currentText, onPageNavigate }: InsightsPanelProps) {
+export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: propJobToBeDone, currentText, onPageNavigate, regenerateSignal }: InsightsPanelProps) {
   const [persona, setPersona] = useState(propPersona || '');
   const [jobToBeDone, setJobToBeDone] = useState(propJobToBeDone || '');
   const [insights, setInsights] = useState<Insight[]>([]);
@@ -54,6 +55,12 @@ export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: p
       handleGenerateInsights();
     }
   }, [currentText, persona, jobToBeDone]);
+
+  useEffect(() => {
+    if (regenerateSignal && !isGenerating) {
+      handleGenerateInsights();
+    }
+  }, [regenerateSignal]);
 
   const handleGenerateInsights = async () => {
     if (!currentText || !persona || !jobToBeDone) {

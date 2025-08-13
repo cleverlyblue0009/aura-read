@@ -527,6 +527,9 @@ export function PodcastPanel({
       </div>
 
       <div className="p-4 space-y-4">
+        {generationProgress && (
+          <div className="text-xs text-text-secondary">{generationProgress}</div>
+        )}
         {/* Generate/Play Controls */}
         {audioSections.length === 0 ? (
           <div className="space-y-4">

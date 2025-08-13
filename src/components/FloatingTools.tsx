@@ -19,25 +19,22 @@ interface FloatingToolsProps {
   currentDocument: PDFDocument | null;
   currentPage: number;
   onHighlight: (highlight: Highlight) => void;
+  onOpenInsights?: () => void;
+  onTriggerInsights?: () => void;
 }
 
-export function FloatingTools({ currentDocument, currentPage, onHighlight }: FloatingToolsProps) {
+export function FloatingTools({ currentDocument, currentPage, onHighlight, onOpenInsights, onTriggerInsights }: FloatingToolsProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
 
   const handleHighlightInsights = () => {
-    // Generate highlights based on current content instead of using mock data
     if (!currentDocument) return;
-    
-    // In a real implementation, this would analyze the current page content
-    // and generate relevant highlights based on the persona and job to be done
-    console.log('Generating AI-powered highlights for current content...');
-    
-    // For now, we'll just indicate that the feature would work with real content
+    onOpenInsights?.();
+    onTriggerInsights?.();
     toast({
-      title: "Feature requires content",
-      description: "Highlight generation will work once you upload and load a PDF document.",
+      title: "Generating insights",
+      description: "We’re analyzing the current context to produce insights…",
       variant: "default"
     });
   };
