@@ -176,24 +176,6 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
     return () => clearInterval(interval);
   }, []);
 
-  // Preload next pages for faster navigation
-  useEffect(() => {
-    if (currentDocument && currentPage < totalPages) {
-      // Preload next 2 pages in background
-      const preloadPages = [currentPage + 1, currentPage + 2].filter(page => page <= totalPages);
-      
-      preloadPages.forEach(page => {
-        const cacheKey = `${currentDocument.id}-${page}-${persona}-${jobToBeDone}`;
-        if (!relatedSectionsCache.current.has(cacheKey)) {
-          // Preload in background without showing loading state
-          setTimeout(() => {
-            loadRelatedSections();
-          }, 1000);
-        }
-      });
-    }
-  }, [currentDocument, currentPage, totalPages, persona, jobToBeDone, loadRelatedSections]);
-
   // Reading progress tracking
   const { getReadingStats, formatTime } = useReadingProgress({
     documentId: currentDocument?.id,
@@ -213,42 +195,57 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
     return currentOutlineItem?.title || "";
   }, [currentDocument, currentPage]);
 
-  // Initialize with first document from props or mock document
-  useEffect(() => {
-    if (documents && documents.length > 0 && !currentDocument) {
-      setCurrentDocument(documents[0]);
-      
-      // Add some sample highlights to demonstrate the feature
-      const sampleHighlights: Highlight[] = [
-        {
-          id: 'sample-1',
-          text: 'This is an important concept that relates to the main topic of the document.',
-          page: 1,
-          color: 'primary',
-          relevanceScore: 0.95,
-          explanation: 'Key concept relevant to your analysis'
-        },
-        {
-          id: 'sample-2', 
-          text: 'Supporting evidence and data that reinforces the primary arguments.',
-          page: 2,
-          color: 'secondary',
-          relevanceScore: 0.87,
-          explanation: 'Supporting evidence for main thesis'
-        },
-        {
-          id: 'sample-3',
-          text: 'Critical analysis point that requires further consideration.',
-          page: 3,
-          color: 'tertiary',
-          relevanceScore: 0.82,
-          explanation: 'Requires deeper analysis for your job role'
-        }
-      ];
-      
-      setHighlights(sampleHighlights);
+  // Enhanced automatic highlighting based on relevance
+  const performAutomaticHighlighting = useCallback(async () => {
+    if (!currentDocument || !persona || !jobToBeDone || relatedSections.length === 0) {
+      return;
     }
-  }, [documents]);
+
+    setIsHighlighting(true);
+    const newHighlights: Highlight[] = [];
+
+    try {
+      // Process top related sections for automatic highlighting
+      for (const section of relatedSections.slice(0, 5)) {
+        if (section.relevance_score >= 0.8) {
+          const highlight = await createEnhancedHighlight(
+            section.section_title,
+            section.page_number,
+            undefined,
+            false
+          );
+          
+          if (highlight) {
+            newHighlights.push(highlight);
+          }
+        }
+      }
+
+      // Add highlights with animation
+      for (let i = 0; i < newHighlights.length; i++) {
+        setTimeout(() => {
+          setHighlights(prev => {
+            const existing = prev.find(h => h.text === newHighlights[i].text && h.page === newHighlights[i].page);
+            if (existing) return prev;
+            return [...prev, newHighlights[i]];
+          });
+        }, i * 200); // Stagger the highlighting animation
+      }
+
+      if (newHighlights.length > 0) {
+        toast({
+          title: "Smart highlights added",
+          description: `Found ${newHighlights.length} relevant sections based on your role and task.`,
+          variant: "default"
+        });
+      }
+
+    } catch (error) {
+      console.error('Automatic highlighting failed:', error);
+    } finally {
+      setIsHighlighting(false);
+    }
+  }, [currentDocument, persona, jobToBeDone, relatedSections, toast]);
 
   // Optimized related sections loading with caching and debouncing
   const loadRelatedSections = useCallback(async (force = false) => {
@@ -322,80 +319,8 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
     }
   }, [currentDocument, currentPage, currentSectionTitle, persona, jobToBeDone, documents, highlightMode, performAutomaticHighlighting, toast]);
 
-  // Optimized outline click with smooth navigation and performance tracking
-  const handleOutlineClick = useCallback((item: OutlineItem) => {
-    const startTime = performance.now();
-    
-    setCurrentPage(item.page);
-    
-    // Clear navigation timeout to prevent conflicts
-    if (navigationTimeoutRef.current) {
-      clearTimeout(navigationTimeoutRef.current);
-    }
-    
-    // Set timeout for performance tracking
-    navigationTimeoutRef.current = setTimeout(() => {
-      const endTime = performance.now();
-      const navigationTime = endTime - startTime;
-      performanceMetrics.current.navigationTimes.push(navigationTime);
-      
-      // Keep only last 50 measurements for performance
-      if (performanceMetrics.current.navigationTimes.length > 50) {
-        performanceMetrics.current.navigationTimes.shift();
-      }
-      
-      lastNavigationTime.current = endTime;
-    }, 100);
-    
-    toast({
-      title: "Navigating to section",
-      description: `Jumping to "${item.title}" on page ${item.page}`,
-      variant: "default"
-    });
-  }, [toast]);
-
-  // Handle document switching
-  const handleDocumentChange = useCallback((document: PDFDocument) => {
-    if (document.id !== currentDocument?.id) {
-      setCurrentDocument(document);
-      setCurrentPage(1); // Reset to first page of new document
-      setSelectedText(''); // Clear selected text
-      setHighlights([]); // Clear highlights (they're document-specific)
-      setHasError(false);
-      setErrorMessage('');
-      
-      toast({
-        title: "Document switched",
-        description: `Now viewing "${document.name}"`,
-        variant: "default"
-      });
-    }
-  }, [currentDocument, toast]);
-
-  // Memoized insights generation
-  const generateInsightsForText = useCallback(async (text: string) => {
-    if (!persona || !jobToBeDone || text.length < 50) return;
-    
-    try {
-      const insights = await apiService.generateInsights(
-        text,
-        persona,
-        jobToBeDone,
-        currentDocument?.id
-      );
-      
-      setCurrentInsights(insights.map(insight => ({
-        type: insight.type,
-        content: insight.content
-      })));
-      
-    } catch (error) {
-      console.error('Failed to generate insights for selected text:', error);
-    }
-  }, [persona, jobToBeDone, currentDocument?.id]);
-
   // Enhanced highlight creation with better accuracy
-  const createEnhancedHighlight = async (text: string, page: number, position?: any, isUserCreated: boolean = false): Promise<Highlight | null> => {
+  const createEnhancedHighlight = useCallback(async (text: string, page: number, position?: any, isUserCreated: boolean = false): Promise<Highlight | null> => {
     if (!text || text.trim().length < 5) {
       return null;
     }
@@ -475,59 +400,140 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
     };
 
     return highlight;
-  };
+  }, [persona, jobToBeDone, currentDocument, currentSectionTitle]);
 
-  // Enhanced automatic highlighting based on relevance
-  const performAutomaticHighlighting = async () => {
-    if (!currentDocument || !persona || !jobToBeDone || relatedSections.length === 0) {
-      return;
-    }
-
-    setIsHighlighting(true);
-    const newHighlights: Highlight[] = [];
-
-    try {
-      // Process top related sections for automatic highlighting
-      for (const section of relatedSections.slice(0, 5)) {
-        if (section.relevance_score >= 0.8) {
-          const highlight = await createEnhancedHighlight(
-            section.section_title,
-            section.page_number,
-            undefined,
-            false
-          );
-          
-          if (highlight) {
-            newHighlights.push(highlight);
-          }
+  // Preload next pages for faster navigation
+  useEffect(() => {
+    if (currentDocument && currentPage < totalPages && loadRelatedSections) {
+      // Preload next 2 pages in background
+      const preloadPages = [currentPage + 1, currentPage + 2].filter(page => page <= totalPages);
+      
+      preloadPages.forEach(page => {
+        const cacheKey = `${currentDocument.id}-${page}-${persona}-${jobToBeDone}`;
+        if (!relatedSectionsCache.current.has(cacheKey)) {
+          // Preload in background without showing loading state
+          setTimeout(() => {
+            loadRelatedSections();
+          }, 1000);
         }
-      }
-
-      // Add highlights with animation
-      for (let i = 0; i < newHighlights.length; i++) {
-        setTimeout(() => {
-          setHighlights(prev => {
-            const existing = prev.find(h => h.text === newHighlights[i].text && h.page === newHighlights[i].page);
-            if (existing) return prev;
-            return [...prev, newHighlights[i]];
-          });
-        }, i * 200); // Stagger the highlighting animation
-      }
-
-      if (newHighlights.length > 0) {
-        toast({
-          title: "Smart highlights added",
-          description: `Found ${newHighlights.length} relevant sections based on your role and task.`,
-          variant: "default"
-        });
-      }
-
-    } catch (error) {
-      console.error('Automatic highlighting failed:', error);
-    } finally {
-      setIsHighlighting(false);
+      });
     }
-  };
+  }, [currentDocument, currentPage, totalPages, persona, jobToBeDone, loadRelatedSections]);
+
+  // Initialize with first document from props or mock document
+  useEffect(() => {
+    if (documents && documents.length > 0 && !currentDocument) {
+      setCurrentDocument(documents[0]);
+      
+      // Add some sample highlights to demonstrate the feature
+      const sampleHighlights: Highlight[] = [
+        {
+          id: 'sample-1',
+          text: 'This is an important concept that relates to the main topic of the document.',
+          page: 1,
+          color: 'primary',
+          relevanceScore: 0.95,
+          explanation: 'Key concept relevant to your analysis',
+          timestamp: Date.now(),
+          isUserCreated: false
+        },
+        {
+          id: 'sample-2', 
+          text: 'Supporting evidence and data that reinforces the primary arguments.',
+          page: 2,
+          color: 'secondary',
+          relevanceScore: 0.87,
+          explanation: 'Supporting evidence for main thesis',
+          timestamp: Date.now(),
+          isUserCreated: false
+        },
+        {
+          id: 'sample-3',
+          text: 'Critical analysis point that requires further consideration.',
+          page: 3,
+          color: 'tertiary',
+          relevanceScore: 0.82,
+          explanation: 'Requires deeper analysis for your job role',
+          timestamp: Date.now(),
+          isUserCreated: false
+        }
+      ];
+      
+      setHighlights(sampleHighlights);
+    }
+  }, [documents]);
+
+  // Optimized outline click with smooth navigation and performance tracking
+  const handleOutlineClick = useCallback((item: OutlineItem) => {
+    const startTime = performance.now();
+    
+    setCurrentPage(item.page);
+    
+    // Clear navigation timeout to prevent conflicts
+    if (navigationTimeoutRef.current) {
+      clearTimeout(navigationTimeoutRef.current);
+    }
+    
+    // Set timeout for performance tracking
+    navigationTimeoutRef.current = setTimeout(() => {
+      const endTime = performance.now();
+      const navigationTime = endTime - startTime;
+      performanceMetrics.current.navigationTimes.push(navigationTime);
+      
+      // Keep only last 50 measurements for performance
+      if (performanceMetrics.current.navigationTimes.length > 50) {
+        performanceMetrics.current.navigationTimes.shift();
+      }
+      
+      lastNavigationTime.current = endTime;
+    }, 100);
+    
+    toast({
+      title: "Navigating to section",
+      description: `Jumping to "${item.title}" on page ${item.page}`,
+      variant: "default"
+    });
+  }, [toast]);
+
+  // Handle document switching
+  const handleDocumentChange = useCallback((document: PDFDocument) => {
+    if (document.id !== currentDocument?.id) {
+      setCurrentDocument(document);
+      setCurrentPage(1); // Reset to first page of new document
+      setSelectedText(''); // Clear selected text
+      setHighlights([]); // Clear highlights (they're document-specific)
+      setHasError(false);
+      setErrorMessage('');
+      
+      toast({
+        title: "Document switched",
+        description: `Now viewing "${document.name}"`,
+        variant: "default"
+      });
+    }
+  }, [currentDocument, toast]);
+
+  // Memoized insights generation
+  const generateInsightsForText = useCallback(async (text: string) => {
+    if (!persona || !jobToBeDone || text.length < 50) return;
+    
+    try {
+      const insights = await apiService.generateInsights(
+        text,
+        persona,
+        jobToBeDone,
+        currentDocument?.id
+      );
+      
+      setCurrentInsights(insights.map(insight => ({
+        type: insight.type,
+        content: insight.content
+      })));
+      
+    } catch (error) {
+      console.error('Failed to generate insights for selected text:', error);
+    }
+  }, [persona, jobToBeDone, currentDocument?.id]);
 
   // Optimized text selection handler with performance tracking
   const handleTextSelection = useCallback(async (text: string, page: number) => {
@@ -592,7 +598,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
   }, [toast]);
 
   // Remove highlight with confirmation for important ones
-  const handleRemoveHighlight = (highlightId: string) => {
+  const handleRemoveHighlight = useCallback((highlightId: string) => {
     const highlight = highlights.find(h => h.id === highlightId);
     
     if (highlight && highlight.relevanceScore >= 0.9) {
@@ -609,7 +615,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
       description: "The highlight has been deleted.",
       variant: "default"
     });
-  };
+  }, [highlights, toast]);
 
   // Load related sections when page or document changes (optimized)
   useEffect(() => {
