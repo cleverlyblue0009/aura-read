@@ -219,8 +219,8 @@ export function TextSimplifier({ originalText, onSimplifiedText }: TextSimplifie
                 </div>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="max-h-40">
-                  <div className="text-sm text-text-primary leading-relaxed">
+                <ScrollArea className="max-h-72">
+                  <div className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">
                     {simplifiedText}
                   </div>
                 </ScrollArea>

@@ -298,17 +298,17 @@ export function PodcastPanel({
 
     // Cancel any existing speech
     window.speechSynthesis.cancel();
-    
+
     if (audioState.isPaused && speechUtteranceRef.current) {
       // Resume paused speech
       window.speechSynthesis.resume();
       updateAudioState({ isPlaying: true, isPaused: false });
       return;
     }
-    
+
     // Create new utterance
     const utterance = new SpeechSynthesisUtterance(podcastScript);
-    
+
     // Enhanced voice configuration
     const voices = window.speechSynthesis.getVoices();
     if (voices.length > 0) {
@@ -319,46 +319,42 @@ export function PodcastPanel({
         voice.name.includes('Natural') ||
         voice.localService === false
       ) || voices[0];
-      
+
       utterance.voice = preferredVoice;
     }
-    
+
     // Optimize speech settings
     utterance.rate = 0.85; // Slightly slower for better comprehension
     utterance.pitch = 1.0;
     utterance.volume = audioState.volume;
-    
-    // Set up event handlers
-    utterance.onstart = () => updateAudioState({ isPlaying: true, isPaused: false, hasError: false });
-    utterance.onend = () => updateAudioState({ isPlaying: false, isPaused: false, currentTime: 0 });
+
+    // Consolidated event handlers with functional state updates
+    let progressInterval: NodeJS.Timeout | undefined;
+    utterance.onstart = () => {
+      updateAudioState({ isPlaying: true, isPaused: false, hasError: false });
+      progressInterval = setInterval(() => {
+        setAudioState(prev => ({
+          ...prev,
+          currentTime: Math.min(prev.currentTime + 1, prev.duration)
+        }));
+      }, 1000);
+    };
+
+    utterance.onend = () => {
+      if (progressInterval) clearInterval(progressInterval);
+      updateAudioState({ isPlaying: false, isPaused: false, currentTime: 0 });
+    };
+
     utterance.onerror = (event) => {
       console.error('Speech synthesis error:', event);
+      if (progressInterval) clearInterval(progressInterval);
       updateAudioState({ 
         isPlaying: false, 
         hasError: true, 
         errorMessage: 'Speech synthesis failed' 
       });
     };
-    
-    // Progress tracking for browser TTS (approximate)
-    let progressInterval: NodeJS.Timeout;
-    utterance.onstart = () => {
-      updateAudioState({ isPlaying: true, isPaused: false });
-      
-      progressInterval = setInterval(() => {
-        if (audioState.isPlaying) {
-          updateAudioState({ 
-            currentTime: Math.min(audioState.currentTime + 1, audioState.duration)
-          });
-        }
-      }, 1000);
-    };
-    
-    utterance.onend = () => {
-      clearInterval(progressInterval);
-      updateAudioState({ isPlaying: false, isPaused: false, currentTime: 0 });
-    };
-    
+
     speechUtteranceRef.current = utterance;
     window.speechSynthesis.speak(utterance);
   };

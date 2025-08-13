@@ -48,11 +48,16 @@ export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: p
     if (propJobToBeDone) setJobToBeDone(propJobToBeDone);
   }, [propPersona, propJobToBeDone]);
 
-  // Auto-generate insights when content is available and user context is set
+  // Auto-generate when requested externally
   useEffect(() => {
-    if (currentText && currentText.length > 100 && persona && jobToBeDone && insights.length === 0) {
-      handleGenerateInsights();
-    }
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { action?: 'generate' };
+      if (detail?.action === 'generate') {
+        handleGenerateInsights();
+      }
+    };
+    window.addEventListener('insights-generate', handler as EventListener);
+    return () => window.removeEventListener('insights-generate', handler as EventListener);
   }, [currentText, persona, jobToBeDone]);
 
   const handleGenerateInsights = async () => {
@@ -219,7 +224,7 @@ export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: p
           {/* Generate Button */}
           <Button
             onClick={handleGenerateInsights}
-            disabled={isGenerating || (!persona && !jobToBeDone)}
+            disabled={isGenerating || !(persona && jobToBeDone)}
             className="w-full gap-2"
           >
             {isGenerating ? (
