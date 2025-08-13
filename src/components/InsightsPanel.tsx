@@ -50,7 +50,7 @@ export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: p
 
   // Auto-generate insights when content is available and user context is set
   useEffect(() => {
-    if (currentText && currentText.length > 100 && persona && jobToBeDone && insights.length === 0) {
+    if (currentText && currentText.length > 20 && persona && jobToBeDone && insights.length === 0) {
       handleGenerateInsights();
     }
   }, [currentText, persona, jobToBeDone]);
@@ -219,7 +219,7 @@ export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: p
           {/* Generate Button */}
           <Button
             onClick={handleGenerateInsights}
-            disabled={isGenerating || (!persona && !jobToBeDone)}
+            disabled={isGenerating || !persona.trim() || !jobToBeDone.trim() || !(currentText && currentText.length > 20)}
             className="w-full gap-2"
           >
             {isGenerating ? (
@@ -331,9 +331,9 @@ export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: p
               <p className="text-sm text-text-secondary mb-1">
                 No insights generated yet
               </p>
-              <p className="text-xs text-text-tertiary">
-                Fill in your persona and goals to get started
-              </p>
+                             <p className="text-xs text-text-tertiary">
+                 Add your persona and goal, then click Generate. You can also select text in the PDF to analyze.
+               </p>
             </div>
           )}
         </div>

@@ -61,6 +61,7 @@ import { InsightsPanel } from './InsightsPanel';
 import { PodcastPanel } from './PodcastPanel';
 import { HighlightPanel } from './HighlightPanel';
 import { TextSimplifier } from './TextSimplifier';
+import { RelatedSectionsPanel } from './RelatedSectionsPanel';
 import { ReadingProgressBar } from './ReadingProgressBar';
 import { CopyDownloadPanel } from './CopyDownloadPanel';
 import { useReadingProgress } from '@/hooks/useReadingProgress';
@@ -698,12 +699,23 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
               )}
               
               {/* Related Sections */}
-              <div className="border-t border-border-subtle max-h-80">
-                <HighlightPanel 
-                  highlights={highlights}
-                  onHighlightClick={(highlight) => handleHighlightClick(highlight)}
-                  onRemoveHighlight={handleRemoveHighlight}
+              <div className="border-t border-border-subtle">
+                <RelatedSectionsPanel
+                  sections={relatedSections}
+                  isLoading={isLoadingRelated}
+                  onSectionClick={(page) => setCurrentPage(page)}
                 />
+              </div>
+
+              {/* Highlights */}
+              <div className="border-t border-border-subtle flex flex-col max-h-80 min-h-0">
+                <div className="flex-1 min-h-0">
+                  <HighlightPanel 
+                    highlights={highlights}
+                    onHighlightClick={(highlight) => handleHighlightClick(highlight)}
+                    onRemoveHighlight={handleRemoveHighlight}
+                  />
+                </div>
               </div>
             </div>
           </aside>
@@ -781,6 +793,11 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
             currentPage={currentPage}
             onHighlight={(highlight) => setHighlights(prev => [...prev, highlight])}
           />
+
+          {/* Related Sections Panel (floating on the right of left sidebar bottom) */}
+          {rightPanelOpen === false && (
+            <div className="absolute left-0 bottom-0 w-80 hidden" />
+          )}
         </main>
 
         {/* Enhanced Right Panel - Interactive Utilities */}

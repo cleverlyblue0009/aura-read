@@ -76,6 +76,7 @@ export function PodcastPanel({
   const [podcastScript, setPodcastScript] = useState<string>('');
   const [audioUrl, setAudioUrl] = useState<string>('');
   const [generationProgress, setGenerationProgress] = useState<string>('');
+  const ttsProgressRef = useRef<number>(0);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const speechUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
@@ -343,17 +344,18 @@ export function PodcastPanel({
     // Progress tracking for browser TTS (approximate)
     let progressInterval: NodeJS.Timeout;
     utterance.onstart = () => {
+      ttsProgressRef.current = 0;
       updateAudioState({ isPlaying: true, isPaused: false });
-      
+
       progressInterval = setInterval(() => {
-        if (audioState.isPlaying) {
-          updateAudioState({ 
-            currentTime: Math.min(audioState.currentTime + 1, audioState.duration)
-          });
-        }
+        ttsProgressRef.current += 1;
+        updateAudioState(prev => ({
+          ...prev,
+          currentTime: Math.min(ttsProgressRef.current, prev.duration)
+        }));
       }, 1000);
     };
-    
+
     utterance.onend = () => {
       clearInterval(progressInterval);
       updateAudioState({ isPlaying: false, isPaused: false, currentTime: 0 });
