@@ -67,12 +67,16 @@ export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: p
     
     setIsGenerating(true);
     try {
+      console.log('Generating insights for:', { persona, jobToBeDone, textLength: currentText.length });
+      
       const apiInsights = await apiService.generateInsights(
         currentText,
         persona,
         jobToBeDone,
         documentId
       );
+      
+      console.log('API insights received:', apiInsights);
       
       // Convert API insights to component format
       const convertedInsights: Insight[] = apiInsights.map((insight, index) => ({
@@ -96,25 +100,15 @@ export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: p
       console.error('Failed to generate insights:', error);
       
       // Enhanced fallback: Generate contextual insights based on content analysis
-      try {
-        const mockInsights: Insight[] = generateContextualInsights(currentText, persona, jobToBeDone);
-        
-        setInsights(mockInsights);
-        
-        toast({
-          title: "Insights generated (Enhanced)",
-          description: `Generated ${mockInsights.length} contextual insights using advanced analysis.`
-        });
-        
-      } catch (fallbackError) {
-        toast({
-          title: "Failed to generate insights",
-          description: "Unable to analyze content. Please check your connection and try again.",
-          variant: "destructive"
-        });
-        // Don't fallback to mock data - leave insights empty
-        setInsights([]);
-      }
+      console.log('Using fallback insight generation...');
+      const mockInsights: Insight[] = generateContextualInsights(currentText, persona, jobToBeDone);
+      
+      setInsights(mockInsights);
+      
+      toast({
+        title: "Insights generated (Local Analysis)",
+        description: `Generated ${mockInsights.length} insights using local content analysis.`
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -217,23 +211,67 @@ export function InsightsPanel({ documentId, persona: propPersona, jobToBeDone: p
           </section>
 
           {/* Generate Button */}
-          <Button
-            onClick={handleGenerateInsights}
-            disabled={isGenerating || (!persona && !jobToBeDone)}
-            className="w-full gap-2"
-          >
-            {isGenerating ? (
-              <>
-                <RefreshCw className="h-4 w-4 animate-spin" />
-                Generating Insights...
-              </>
-            ) : (
-              <>
-                <Lightbulb className="h-4 w-4" />
-                Generate AI Insights
-              </>
+          <div className="space-y-2">
+            <Button
+              onClick={handleGenerateInsights}
+              disabled={isGenerating || !currentText || !persona || !jobToBeDone}
+              className="w-full gap-2"
+            >
+              {isGenerating ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Generating Insights...
+                </>
+              ) : (
+                <>
+                  <Lightbulb className="h-4 w-4" />
+                  Generate AI Insights
+                </>
+              )}
+            </Button>
+            
+            {/* Debug info when button is disabled */}
+            {(!currentText || !persona || !jobToBeDone) && !isGenerating && (
+              <div className="text-xs text-text-secondary space-y-1">
+                <p>Missing requirements:</p>
+                <ul className="list-disc list-inside space-y-0.5">
+                  {!currentText && <li>No content selected or available</li>}
+                  {!persona && <li>Persona not specified</li>}
+                  {!jobToBeDone && <li>Goal not specified</li>}
+                </ul>
+              </div>
             )}
-          </Button>
+            
+            {/* Fallback button for testing */}
+            {(!persona || !jobToBeDone) && currentText && (
+              <Button
+                onClick={() => {
+                  const fallbackPersona = persona || "General reader";
+                  const fallbackJob = jobToBeDone || "Understand the content";
+                  
+                  console.log('Using fallback values:', { fallbackPersona, fallbackJob });
+                  
+                  setPersona(fallbackPersona);
+                  setJobToBeDone(fallbackJob);
+                  
+                  // Generate insights with fallback values
+                  const mockInsights: Insight[] = generateContextualInsights(currentText, fallbackPersona, fallbackJob);
+                  setInsights(mockInsights);
+                  
+                  toast({
+                    title: "Insights generated (Quick Mode)",
+                    description: `Generated ${mockInsights.length} insights with default persona/goal.`
+                  });
+                }}
+                variant="outline"
+                size="sm"
+                className="w-full gap-2 text-xs"
+              >
+                <Sparkles className="h-3 w-3" />
+                Quick Generate (Use Defaults)
+              </Button>
+            )}
+          </div>
 
           {/* Generated Insights */}
           {insights.length > 0 && (

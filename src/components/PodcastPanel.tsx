@@ -557,6 +557,28 @@ export function PodcastPanel({
                 </>
               )}
             </Button>
+
+            {/* Generation Progress */}
+            {audioState.isLoading && generationProgress && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-text-secondary">{generationProgress}</span>
+                </div>
+                <div className="w-full bg-background-secondary rounded-full h-2">
+                  <div 
+                    className="bg-brand-primary h-2 rounded-full transition-all duration-500"
+                    style={{ 
+                      width: `${
+                        generationProgress.includes('Analyzing') ? '25%' :
+                        generationProgress.includes('script') ? '50%' :
+                        generationProgress.includes('audio') ? '75%' :
+                        generationProgress.includes('Retrying') ? '40%' : '90%'
+                      }` 
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <>
