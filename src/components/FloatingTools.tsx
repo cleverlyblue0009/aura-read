@@ -55,7 +55,11 @@ export function FloatingTools({ currentDocument, currentPage, onHighlight }: Flo
       label: 'Insights Bulb',
       icon: Lightbulb,
       description: 'Generate AI insights',
-      action: handleHighlightInsights,
+      action: () => {
+        // Notify PDFReader to open Insights panel and trigger generation
+        window.dispatchEvent(new CustomEvent('open-right-panel', { detail: { tab: 'insights', trigger: 'generate' } }));
+        handleHighlightInsights();
+      },
       className: 'bg-brand-primary hover:bg-brand-primary/90 text-text-on-brand'
     },
     {
@@ -63,7 +67,10 @@ export function FloatingTools({ currentDocument, currentPage, onHighlight }: Flo
       label: 'Podcast Mode',
       icon: Mic,
       description: 'Listen to summary',
-      action: handlePodcastGeneration,
+      action: () => {
+        window.dispatchEvent(new CustomEvent('open-right-panel', { detail: { tab: 'podcast', trigger: 'generate' } }));
+        handlePodcastGeneration();
+      },
       className: 'bg-brand-secondary hover:bg-brand-secondary/90 text-text-on-brand'
     },
     {
@@ -71,7 +78,7 @@ export function FloatingTools({ currentDocument, currentPage, onHighlight }: Flo
       label: 'Smart Highlight',
       icon: BookOpen,
       description: 'AI-powered highlighting',
-      action: () => console.log('Smart highlighting...'),
+      action: () => window.dispatchEvent(new CustomEvent('open-right-panel', { detail: { tab: 'accessibility' } })),
       className: 'bg-brand-accent hover:bg-brand-accent/90 text-text-primary'
     }
   ];

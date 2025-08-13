@@ -604,6 +604,25 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
     };
   }, []);
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { tab?: typeof activeRightPanel; trigger?: 'generate' };
+      if (detail?.tab) {
+        setActiveRightPanel(detail.tab);
+      }
+      // Optionally trigger content generation based on current selection
+      if (detail?.trigger === 'generate') {
+        if (detail.tab === 'insights' && (selectedText || currentSectionTitle)) {
+          generateInsightsForText((selectedText || currentSectionTitle).slice(0, 1000));
+          // Also notify InsightsPanel to generate using its internal logic
+          window.dispatchEvent(new CustomEvent('insights-generate', { detail: { action: 'generate' } }));
+        }
+      }
+    };
+    window.addEventListener('open-right-panel', handler as EventListener);
+    return () => window.removeEventListener('open-right-panel', handler as EventListener);
+  }, [selectedText, currentSectionTitle, generateInsightsForText]);
+
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Enhanced Header with animations */}
@@ -697,8 +716,31 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
                 </div>
               )}
               
-              {/* Related Sections */}
-              <div className="border-t border-border-subtle max-h-80">
+              {/* Related Sections (Important) */}
+              {relatedSections.length > 0 && (
+                <div className="border-t border-border-subtle h-40 overflow-hidden">
+                  <div className="px-4 py-2 text-xs font-medium text-text-secondary">Important sections</div>
+                  <div className="h-[calc(100%-2rem)] overflow-auto px-4 pb-2 space-y-2">
+                    {relatedSections.slice(0, 6).map((section, idx) => (
+                      <button
+                        key={`${section.document}-${section.page_number}-${idx}`}
+                        className="w-full text-left text-xs p-2 rounded-md border border-border-subtle hover:border-brand-primary hover:bg-brand-primary/5 transition-colors"
+                        onClick={() => setCurrentPage(section.page_number)}
+                        title={`${section.document}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="font-medium text-text-primary truncate">{section.section_title}</div>
+                          <div className="text-[10px] text-text-tertiary">p.{section.page_number}</div>
+                        </div>
+                        <div className="text-[11px] text-text-secondary line-clamp-2">{section.explanation}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Highlights */}
+              <div className="border-t border-border-subtle h-80 min-h-0">
                 <HighlightPanel 
                   highlights={highlights}
                   onHighlightClick={(highlight) => handleHighlightClick(highlight)}
