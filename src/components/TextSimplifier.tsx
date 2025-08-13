@@ -15,13 +15,15 @@ import {
   Copy,
   RotateCcw
 } from 'lucide-react';
+import React from 'react';
 
 interface TextSimplifierProps {
   originalText?: string;
   onSimplifiedText?: (text: string) => void;
+  autoRunOnTextChange?: boolean;
 }
 
-export function TextSimplifier({ originalText, onSimplifiedText }: TextSimplifierProps) {
+export function TextSimplifier({ originalText, onSimplifiedText, autoRunOnTextChange }: TextSimplifierProps) {
   const [difficultyLevel, setDifficultyLevel] = useState<string>('simple');
   const [simplifiedText, setSimplifiedText] = useState<string>('');
   const [isSimplifying, setIsSimplifying] = useState(false);
@@ -108,6 +110,13 @@ export function TextSimplifier({ originalText, onSimplifiedText }: TextSimplifie
   const handleReset = () => {
     setSimplifiedText('');
   };
+
+  // Auto-run on new selections when enabled
+  React.useEffect(() => {
+    if (autoRunOnTextChange && originalText && originalText.trim().length > 0) {
+      handleSimplify();
+    }
+  }, [originalText, autoRunOnTextChange]);
 
   const currentLevel = difficultyLevels.find(level => level.value === difficultyLevel);
 
@@ -219,7 +228,7 @@ export function TextSimplifier({ originalText, onSimplifiedText }: TextSimplifie
                 </div>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="max-h-40">
+                <ScrollArea className="max-h-64">{/* increased height */}
                   <div className="text-sm text-text-primary leading-relaxed">
                     {simplifiedText}
                   </div>

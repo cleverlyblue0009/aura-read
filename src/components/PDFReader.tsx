@@ -124,6 +124,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
   const [activeRightPanel, setActiveRightPanel] = useState<'insights' | 'podcast' | 'accessibility' | 'simplifier' | 'export' | null>('insights');
   const [selectedText, setSelectedText] = useState<string>('');
   const [currentInsights, setCurrentInsights] = useState<Array<{ type: string; content: string }>>([]);
+  const [insightsBump, setInsightsBump] = useState(0);
   const [relatedSections, setRelatedSections] = useState<RelatedSection[]>([]);
   const [isLoadingRelated, setIsLoadingRelated] = useState(false);
   const [readingStartTime, setReadingStartTime] = useState<number>(Date.now());
@@ -697,7 +698,28 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
                 </div>
               )}
               
-              {/* Related Sections */}
+              {/* Related Sections (Important) */}
+              <div className="border-t border-border-subtle max-h-56 min-h-40 overflow-y-auto">
+                <div className="p-3">
+                  <div className="text-xs font-medium text-text-secondary mb-2">Important Sections</div>
+                  {relatedSections.length === 0 ? (
+                    <div className="text-xs text-text-tertiary">No related sections yet.</div>
+                  ) : (
+                    <ul className="space-y-2">
+                      {relatedSections.slice(0, 6).map((s, i) => (
+                        <li key={`${s.section_title}-${i}`}
+                            className="text-xs text-text-primary cursor-pointer hover:text-brand-primary"
+                            onClick={() => setCurrentPage(s.page_number)}
+                            title={`${s.section_title} (p.${s.page_number})`}>
+                          • {s.section_title}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+              
+              {/* Highlights */}
               <div className="border-t border-border-subtle max-h-80">
                 <HighlightPanel 
                   highlights={highlights}
@@ -780,6 +802,8 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
             currentDocument={currentDocument}
             currentPage={currentPage}
             onHighlight={(highlight) => setHighlights(prev => [...prev, highlight])}
+            onOpenInsights={() => setActiveRightPanel('insights')}
+            onTriggerInsights={() => setInsightsBump((v) => v + 1)}
           />
         </main>
 
@@ -811,13 +835,14 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
 
             <div className="flex-1 overflow-hidden">
               {activeRightPanel === 'insights' && (
-                <InsightsPanel 
-                  documentId={currentDocument?.id}
-                  persona={persona}
-                  jobToBeDone={jobToBeDone}
-                  currentText={selectedText || currentSectionTitle}
-                  onPageNavigate={setCurrentPage}
-                />
+                                  <InsightsPanel 
+                    documentId={currentDocument?.id}
+                    persona={persona}
+                    jobToBeDone={jobToBeDone}
+                    currentText={selectedText || currentSectionTitle}
+                    onPageNavigate={setCurrentPage}
+                    regenerateSignal={insightsBump}
+                  />
               )}
               
               {activeRightPanel === 'podcast' && (
@@ -844,6 +869,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
               {activeRightPanel === 'simplifier' && (
                 <TextSimplifier 
                   originalText={selectedText || currentSectionTitle}
+                  autoRunOnTextChange
                   onSimplifiedText={(text) => console.log('Simplified:', text)}
                 />
               )}

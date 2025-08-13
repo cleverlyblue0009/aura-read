@@ -104,7 +104,7 @@ export function HighlightPanel({ highlights, onHighlightClick, onRemoveHighlight
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col min-h-0">
       <div className="p-4 border-b border-border-subtle">
         <div className="flex items-center gap-2 mb-3">
           <Highlighter className="h-5 w-5 text-brand-primary" />
@@ -201,7 +201,7 @@ export function HighlightPanel({ highlights, onHighlightClick, onRemoveHighlight
       </div>
 
       {/* Enhanced Highlights List */}
-      <ScrollArea className="flex-1 min-h-0">
+      <ScrollArea className="flex-1 min-h-0 max-h-[22rem]">{/* ensure scrollable */}
         <div className="p-4 space-y-4">
           {filteredHighlights.length > 0 ? (
             filteredHighlights.map((highlight) => (
