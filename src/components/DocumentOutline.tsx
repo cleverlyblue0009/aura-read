@@ -1,17 +1,32 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ChevronRight, ChevronDown, FileText, Eye, ArrowRight, Clock } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileText, Eye, ArrowRight, Clock, FolderOpen } from 'lucide-react';
 import { OutlineItem } from './PDFReader';
 
-interface DocumentOutlineProps {
+interface PDFDocument {
+  id: string;
+  name: string;
   outline: OutlineItem[];
-  currentPage: number;
-  onItemClick: (item: OutlineItem) => void;
 }
 
-export function DocumentOutline({ outline, currentPage, onItemClick }: DocumentOutlineProps) {
+interface DocumentOutlineProps {
+  documents: PDFDocument[];
+  currentDocument?: PDFDocument;
+  currentPage: number;
+  onItemClick: (item: OutlineItem) => void;
+  onDocumentChange?: (document: PDFDocument) => void;
+}
+
+export function DocumentOutline({ 
+  documents, 
+  currentDocument, 
+  currentPage, 
+  onItemClick, 
+  onDocumentChange 
+}: DocumentOutlineProps) {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set(['root']));
+  const [expandedDocuments, setExpandedDocuments] = useState<Set<string>>(new Set(documents.map(d => d.id)));
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   // Optimized toggle function with useCallback
@@ -27,10 +42,27 @@ export function DocumentOutline({ outline, currentPage, onItemClick }: DocumentO
     });
   }, []);
 
+  const toggleDocumentExpanded = useCallback((docId: string) => {
+    setExpandedDocuments(prev => {
+      const newExpanded = new Set(prev);
+      if (newExpanded.has(docId)) {
+        newExpanded.delete(docId);
+      } else {
+        newExpanded.add(docId);
+      }
+      return newExpanded;
+    });
+  }, []);
+
   // Enhanced item click with smooth navigation
-  const handleItemClick = useCallback((item: OutlineItem, event: React.MouseEvent) => {
+  const handleItemClick = useCallback((item: OutlineItem, document: PDFDocument, event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
+    
+    // Switch to the document if it's not the current one
+    if (currentDocument?.id !== document.id && onDocumentChange) {
+      onDocumentChange(document);
+    }
     
     // Immediate visual feedback
     const element = event.currentTarget;
@@ -46,21 +78,24 @@ export function DocumentOutline({ outline, currentPage, onItemClick }: DocumentO
     if (item.children && item.children.length > 0) {
       setExpandedItems(prev => new Set([...prev, item.id]));
     }
-  }, [onItemClick]);
+  }, [onItemClick, onDocumentChange, currentDocument]);
+
+  // Get combined outline from all documents or current document outline
+  const displayOutline = currentDocument ? currentDocument.outline : [];
 
   // Memoized outline processing for performance
   const processedOutline = useMemo(() => {
-    return outline.map(item => ({
+    return displayOutline.map(item => ({
       ...item,
       isActive: Math.abs(currentPage - item.page) <= 1,
       hasChildren: item.children && item.children.length > 0,
       isExpanded: expandedItems.has(item.id),
       distanceFromCurrent: Math.abs(currentPage - item.page)
     }));
-  }, [outline, currentPage, expandedItems]);
+  }, [displayOutline, currentPage, expandedItems]);
 
-  const renderOutlineItem = useCallback((item: OutlineItem, depth = 0) => {
-    const isActive = Math.abs(currentPage - item.page) <= 1;
+  const renderOutlineItem = useCallback((item: OutlineItem, document: PDFDocument, depth = 0) => {
+    const isActive = currentDocument?.id === document.id && Math.abs(currentPage - item.page) <= 1;
     const hasChildren = item.children && item.children.length > 0;
     const isExpanded = expandedItems.has(item.id);
     const isHovered = hoveredItem === item.id;
@@ -84,11 +119,11 @@ export function DocumentOutline({ outline, currentPage, onItemClick }: DocumentO
     };
 
     return (
-      <div key={item.id} className="select-none">
+      <div key={`${document.id}-${item.id}`} className="select-none">
         <div
           className={getItemStyles()}
           style={{ paddingLeft: `${depth * 12 + 12}px` }}
-          onClick={(e) => handleItemClick(item, e)}
+          onClick={(e) => handleItemClick(item, document, e)}
           onMouseEnter={() => setHoveredItem(item.id)}
           onMouseLeave={() => setHoveredItem(null)}
           role="button"
@@ -97,15 +132,16 @@ export function DocumentOutline({ outline, currentPage, onItemClick }: DocumentO
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              handleItemClick(item, e as any);
+              handleItemClick(item, document, e as any);
             }
           }}
         >
-          {hasChildren ? (
+          {/* Expand/Collapse Button */}
+          {hasChildren && (
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 p-0 hover:bg-surface-hover flex-shrink-0"
+              className="h-5 w-5 p-0 hover:bg-surface-hover group-hover:bg-surface-active transition-colors"
               onClick={(e) => {
                 e.stopPropagation();
                 toggleExpanded(item.id);
@@ -113,96 +149,56 @@ export function DocumentOutline({ outline, currentPage, onItemClick }: DocumentO
               aria-label={isExpanded ? 'Collapse section' : 'Expand section'}
             >
               {isExpanded ? (
-                <ChevronDown className="h-3 w-3 transition-transform" />
+                <ChevronDown className="h-3 w-3" />
               ) : (
-                <ChevronRight className="h-3 w-3 transition-transform" />
+                <ChevronRight className="h-3 w-3" />
               )}
             </Button>
-          ) : (
-            <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
-              <FileText className="h-3 w-3 text-text-tertiary" />
-            </div>
           )}
-
-          <span className={`
-            flex-1 text-sm truncate transition-colors
-            ${item.level === 1 ? 'font-semibold text-text-primary' : ''}
-            ${item.level === 2 ? 'font-medium text-text-primary' : ''}
-            ${item.level >= 3 ? 'text-text-secondary' : ''}
-            ${isActive ? 'text-brand-primary' : ''}
-          `}>
-            {item.title}
-          </span>
-
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-            {/* Distance indicator for nearby pages */}
-            {distanceFromCurrent <= 5 && distanceFromCurrent > 1 && (
-              <div className="flex items-center gap-1 text-xs text-text-tertiary">
-                <Clock className="h-3 w-3" />
-                <span>{distanceFromCurrent}p</span>
-              </div>
-            )}
-            
-            {/* Quick navigation button */}
-            {isHovered && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 w-6 p-0 hover:bg-brand-primary/10 hover:text-brand-primary"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleItemClick(item, e);
-                }}
-                aria-label="Quick navigate"
-              >
-                <ArrowRight className="h-3 w-3" />
-              </Button>
-            )}
-            
-            {/* Page preview button */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 w-6 p-0 hover:bg-surface-hover opacity-0 group-hover:opacity-100"
-              onClick={(e) => {
-                e.stopPropagation();
-                // Future: implement page preview
-                console.log('Preview page:', item.page);
-              }}
-              aria-label="Preview page"
-            >
-              <Eye className="h-3 w-3" />
-            </Button>
-            
-            <span className="text-xs text-text-tertiary font-mono min-w-[2rem] text-right">
-              {item.page}
+          
+          {/* Content */}
+          <div className="flex-1 min-w-0 flex items-center gap-2">
+            <FileText className="h-3 w-3 text-text-tertiary flex-shrink-0" />
+            <span className="text-sm truncate font-medium text-text-primary group-hover:text-brand-primary transition-colors">
+              {item.title}
             </span>
+            <div className="flex items-center gap-1 text-xs text-text-tertiary">
+              <span>p.{item.page}</span>
+              {isActive && <Eye className="h-3 w-3 text-brand-primary" />}
+            </div>
           </div>
+          
+          {/* Quick navigation hint on hover */}
+          {isHovered && (
+            <ArrowRight className="h-3 w-3 text-brand-primary animate-bounce-x opacity-70" />
+          )}
         </div>
 
-        {hasChildren && isExpanded && (
-          <div className="animate-fade-in">
-            {item.children!.map(child => renderOutlineItem(child, depth + 1))}
+        {/* Render children recursively */}
+        {hasChildren && isExpanded && item.children && (
+          <div className="ml-2">
+            {item.children.map(child => renderOutlineItem(child, document, depth + 1))}
           </div>
         )}
       </div>
     );
-  }, [currentPage, expandedItems, hoveredItem, handleItemClick, toggleExpanded]);
+  }, [currentPage, currentDocument, expandedItems, hoveredItem, handleItemClick, toggleExpanded]);
 
-  // Calculate reading statistics
+  // Calculate reading statistics across all documents
   const readingStats = useMemo(() => {
-    const totalSections = outline.length;
-    const completedSections = outline.filter(item => item.page < currentPage).length;
-    const progressPercentage = Math.round((currentPage / 30) * 100); // Assuming 30 pages total
-    const estimatedRemaining = Math.max(1, Math.round((30 - currentPage) * 1.5));
-    
+    const allOutlines = documents.flatMap(doc => doc.outline);
+    const totalSections = allOutlines.length;
+    const completedSections = allOutlines.filter(item => item.page < currentPage).length;
+    const progressPercentage = totalSections > 0 ? Math.round((completedSections / totalSections) * 100) : 0;
+    const estimatedRemaining = Math.max(0, Math.round((totalSections - completedSections) * 2.5));
+
     return {
       totalSections,
       completedSections,
       progressPercentage,
       estimatedRemaining
     };
-  }, [outline, currentPage]);
+  }, [documents, currentPage]);
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -210,7 +206,7 @@ export function DocumentOutline({ outline, currentPage, onItemClick }: DocumentO
       <div className="p-5 border-b border-border-subtle flex-shrink-0 bg-surface-elevated/50">
         <h3 className="font-semibold text-lg text-text-primary mb-2">Document Outline</h3>
         <div className="flex items-center justify-between text-sm text-text-secondary">
-          <span>{outline.length} sections</span>
+          <span>{documents.length} document{documents.length !== 1 ? 's' : ''}</span>
           <div className="flex items-center gap-2">
             <span className="text-brand-primary font-medium">Page {currentPage}</span>
             {readingStats.completedSections > 0 && (
@@ -222,10 +218,72 @@ export function DocumentOutline({ outline, currentPage, onItemClick }: DocumentO
         </div>
       </div>
 
-      {/* Scrollable Outline with enhanced performance */}
+      {/* Scrollable Document List and Outline */}
       <ScrollArea className="flex-1 min-h-0">
-        <div className="p-2 space-y-1">
-          {processedOutline.map(item => renderOutlineItem(item))}
+        <div className="p-2 space-y-2">
+          {documents.length > 1 ? (
+            // Multiple documents - show document tree
+            documents.map(document => {
+              const isDocExpanded = expandedDocuments.has(document.id);
+              const isCurrentDoc = currentDocument?.id === document.id;
+              
+              return (
+                <div key={document.id} className="border border-border-subtle rounded-lg">
+                  {/* Document Header */}
+                  <div
+                    className={`flex items-center gap-2 p-3 cursor-pointer rounded-t-lg transition-all duration-200 ${
+                      isCurrentDoc 
+                        ? 'bg-brand-primary/10 border-brand-primary' 
+                        : 'bg-surface-elevated hover:bg-surface-hover'
+                    }`}
+                    onClick={() => {
+                      if (onDocumentChange) {
+                        onDocumentChange(document);
+                      }
+                      toggleDocumentExpanded(document.id);
+                    }}
+                  >
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-5 w-5 p-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleDocumentExpanded(document.id);
+                      }}
+                    >
+                      {isDocExpanded ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <FolderOpen className={`h-4 w-4 ${isCurrentDoc ? 'text-brand-primary' : 'text-text-secondary'}`} />
+                    <span className={`text-sm font-medium truncate ${isCurrentDoc ? 'text-brand-primary' : 'text-text-primary'}`}>
+                      {document.name}
+                    </span>
+                    <span className="text-xs text-text-tertiary">
+                      ({document.outline.length} sections)
+                    </span>
+                  </div>
+                  
+                  {/* Document Outline */}
+                  {isDocExpanded && (
+                    <div className="border-t border-border-subtle">
+                      {document.outline.map(item => renderOutlineItem(item, document))}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          ) : (
+            // Single document - show outline directly
+            currentDocument && (
+              <div className="space-y-1">
+                {processedOutline.map(item => renderOutlineItem(item, currentDocument))}
+              </div>
+            )
+          )}
         </div>
       </ScrollArea>
 

@@ -322,32 +322,55 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
     }
   }, [currentDocument, currentPage, currentSectionTitle, persona, jobToBeDone, documents, highlightMode, performAutomaticHighlighting, toast]);
 
-  // Optimized outline click handler
+  // Optimized outline click with smooth navigation and performance tracking
   const handleOutlineClick = useCallback((item: OutlineItem) => {
-    // Immediate visual feedback
     const startTime = performance.now();
     
-    // Update page immediately for responsive feel
     setCurrentPage(item.page);
     
-    // Show loading state for complex operations
-    if (Math.abs(item.page - currentPage) > 3) {
-      setIsLoadingRelated(true);
+    // Clear navigation timeout to prevent conflicts
+    if (navigationTimeoutRef.current) {
+      clearTimeout(navigationTimeoutRef.current);
     }
     
-    // Defer heavy operations
-    requestAnimationFrame(() => {
-      loadRelatedSections();
-      
+    // Set timeout for performance tracking
+    navigationTimeoutRef.current = setTimeout(() => {
       const endTime = performance.now();
       const navigationTime = endTime - startTime;
+      performanceMetrics.current.navigationTimes.push(navigationTime);
       
-      // Performance monitoring
-      if (navigationTime > 2000) {
-        console.warn(`Slow navigation detected: ${navigationTime}ms`);
+      // Keep only last 50 measurements for performance
+      if (performanceMetrics.current.navigationTimes.length > 50) {
+        performanceMetrics.current.navigationTimes.shift();
       }
+      
+      lastNavigationTime.current = endTime;
+    }, 100);
+    
+    toast({
+      title: "Navigating to section",
+      description: `Jumping to "${item.title}" on page ${item.page}`,
+      variant: "default"
     });
-  }, [currentPage, loadRelatedSections]);
+  }, [toast]);
+
+  // Handle document switching
+  const handleDocumentChange = useCallback((document: PDFDocument) => {
+    if (document.id !== currentDocument?.id) {
+      setCurrentDocument(document);
+      setCurrentPage(1); // Reset to first page of new document
+      setSelectedText(''); // Clear selected text
+      setHighlights([]); // Clear highlights (they're document-specific)
+      setHasError(false);
+      setErrorMessage('');
+      
+      toast({
+        title: "Document switched",
+        description: `Now viewing "${document.name}"`,
+        variant: "default"
+      });
+    }
+  }, [currentDocument, toast]);
 
   // Memoized insights generation
   const generateInsightsForText = useCallback(async (text: string) => {
@@ -687,18 +710,18 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
           <aside className="w-80 bg-surface-elevated/50 border-r border-border-subtle flex flex-col animate-slide-in-left backdrop-blur-sm custom-scrollbar glass">
             <div className="flex-1 overflow-hidden flex flex-col">
               {/* Document Outline */}
-              {currentDocument && (
-                <div className="flex-1">
-                  <DocumentOutline
-                    outline={currentDocument.outline}
-                    currentPage={currentPage}
-                    onItemClick={handleOutlineClick}
-                  />
-                </div>
-              )}
+              <div className="flex-1 min-h-0">
+                <DocumentOutline
+                  documents={documents || []}
+                  currentDocument={currentDocument}
+                  currentPage={currentPage}
+                  onItemClick={handleOutlineClick}
+                  onDocumentChange={handleDocumentChange}
+                />
+              </div>
               
-              {/* Related Sections */}
-              <div className="border-t border-border-subtle max-h-80">
+              {/* Highlights Section */}
+              <div className="border-t border-border-subtle h-80 flex-shrink-0">
                 <HighlightPanel 
                   highlights={highlights}
                   onHighlightClick={(highlight) => handleHighlightClick(highlight)}
