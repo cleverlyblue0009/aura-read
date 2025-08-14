@@ -27,8 +27,23 @@ interface PodcastPanelProps {
   documentId?: string;
   currentPage: number;
   currentText?: string;
-  relatedSections?: string[];
-  insights?: string[];
+  relatedSections?: Array<{
+    doc_id: string;
+    doc_name: string;
+    heading: string;
+    snippet: string;
+    page: number;
+    start_page: number;
+    end_page: number;
+    relevance_score: number;
+    section_type: string;
+  }>;
+  insights?: Array<{
+    type: string;
+    content: string;
+    confidence?: number;
+    sources?: string[];
+  }>;
 }
 
 interface AudioSection {
@@ -120,7 +135,8 @@ export function PodcastPanel({
           result = await apiService.generatePodcast(
             contentForPodcast.text,
             contentForPodcast.sections,
-            contentForPodcast.insights
+            contentForPodcast.insights,
+            'single' // Default to single speaker podcast
           );
           break; // Success, exit retry loop
         } catch (error) {
@@ -396,11 +412,30 @@ export function PodcastPanel({
   };
 
   // Helper functions
-  const prepareContentForPodcast = (text: string, sections: string[], insights: string[]) => {
+  const prepareContentForPodcast = (
+    text: string, 
+    sections?: Array<{
+      doc_id: string;
+      doc_name: string;
+      heading: string;
+      snippet: string;
+      page: number;
+      start_page: number;
+      end_page: number;
+      relevance_score: number;
+      section_type: string;
+    }>, 
+    insights?: Array<{
+      type: string;
+      content: string;
+      confidence?: number;
+      sources?: string[];
+    }>
+  ) => {
     return {
       text: text.slice(0, 1500), // Limit for better processing
-      sections: sections.slice(0, 3), // Top 3 related sections
-      insights: insights.slice(0, 3) // Top 3 insights
+      sections: sections?.slice(0, 3) || [], // Top 3 related sections
+      insights: insights?.slice(0, 3) || [] // Top 3 insights
     };
   };
 
@@ -410,18 +445,22 @@ export function PodcastPanel({
     return Math.ceil((wordCount / 150) * 60);
   };
 
-  const createFallbackScript = (text: string, insights: string[], sections: string[]): string => {
+  const createFallbackScript = (
+    text: string, 
+    insights?: Array<{type: string; content: string}>, 
+    sections?: Array<{doc_name: string; heading: string; snippet: string}>
+  ): string => {
     const intro = "Welcome to your AI-generated podcast summary.";
     
     const content = text.slice(0, 300);
     const contentSection = content ? `Here's a summary of the current section: ${content}` : '';
     
-    const insightsSection = insights.length > 0 
-      ? `Key insights include: ${insights.slice(0, 2).join('. ')}`
+    const insightsSection = insights && insights.length > 0 
+      ? `Key insights include: ${insights.slice(0, 2).map(i => i.content).join('. ')}`
       : '';
     
-    const relatedSection = sections.length > 0 
-      ? `Related sections to explore: ${sections.slice(0, 2).join(', ')}`
+    const relatedSection = sections && sections.length > 0 
+      ? `Related sections to explore: ${sections.slice(0, 2).map(s => `${s.heading} from ${s.doc_name}`).join(', ')}`
       : '';
     
     const outro = "This completes your personalized podcast summary.";

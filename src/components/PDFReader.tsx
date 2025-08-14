@@ -63,15 +63,17 @@ import { HighlightPanel } from './HighlightPanel';
 import { TextSimplifier } from './TextSimplifier';
 import { ReadingProgressBar } from './ReadingProgressBar';
 import { CopyDownloadPanel } from './CopyDownloadPanel';
+import { RelatedSectionsPanel } from './RelatedSectionsPanel';
 import { useReadingProgress } from '@/hooks/useReadingProgress';
-import { apiService, RelatedSection } from '@/lib/api';
+import { apiService, RelatedSection, RelatedSectionSnippet } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Menu, 
   Upload, 
   BookOpen, 
   Settings,
-  Palette
+  Palette,
+  FileText
 } from 'lucide-react';
 
 export interface PDFDocument {
@@ -121,10 +123,11 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
   const [currentPage, setCurrentPage] = useState(1);
   const [zoom, setZoom] = useState(1.0);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
-  const [activeRightPanel, setActiveRightPanel] = useState<'insights' | 'podcast' | 'accessibility' | 'simplifier' | 'export' | null>('insights');
+  const [activeRightPanel, setActiveRightPanel] = useState<'insights' | 'podcast' | 'accessibility' | 'simplifier' | 'export' | 'related' | null>('related');
   const [selectedText, setSelectedText] = useState<string>('');
   const [currentInsights, setCurrentInsights] = useState<Array<{ type: string; content: string }>>([]);
   const [relatedSections, setRelatedSections] = useState<RelatedSection[]>([]);
+  const [relatedSectionsDetailed, setRelatedSectionsDetailed] = useState<RelatedSectionSnippet[]>([]);
   const [isLoadingRelated, setIsLoadingRelated] = useState(false);
   const [readingStartTime, setReadingStartTime] = useState<number>(Date.now());
   const [isActivelyReading, setIsActivelyReading] = useState(true);
@@ -529,7 +532,10 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
     }
   };
 
-  // Optimized text selection handler with performance tracking
+  // Enhanced text selection handler with debouncing and caching
+  const textSelectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSelectionRef = useRef<{text: string, page: number} | null>(null);
+  
   const handleTextSelection = useCallback(async (text: string, page: number) => {
     const startTime = performance.now();
     
@@ -537,33 +543,212 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
     setSelectedText(text);
     setCurrentPage(page);
     
-    if (text.length >= 10) {
-      // Create highlight asynchronously to avoid blocking UI
-      requestIdleCallback(async () => {
-        const highlight = await createEnhancedHighlight(text, page, undefined, true);
+    // Clear previous timeout
+    if (textSelectionTimeoutRef.current) {
+      clearTimeout(textSelectionTimeoutRef.current);
+    }
+    
+    // Debounce text selection processing to avoid excessive API calls
+    textSelectionTimeoutRef.current = setTimeout(async () => {
+      // Check if this is a duplicate selection
+      if (lastSelectionRef.current?.text === text && lastSelectionRef.current?.page === page) {
+        return;
+      }
+      
+      lastSelectionRef.current = {text, page};
+      
+      // Find related sections for text selections over 20 characters
+      if (text.length >= 20 && currentDocument && documents) {
+        setIsLoadingRelated(true);
         
-        if (highlight) {
-          setHighlights(prev => [...prev, highlight]);
+        try {
+          const documentIds = documents.map(doc => doc.id);
+          const result = await apiService.handleTextSelection(
+            text,
+            currentDocument.id,
+            page,
+            documentIds,
+            persona || 'researcher',
+            jobToBeDone || 'analyze documents'
+          );
+          
+          // Convert to the expected RelatedSection format for compatibility
+          const relatedSectionData = result.related_sections.map(section => ({
+            document: section.doc_name,
+            section_title: section.heading,
+            page_number: section.page,
+            relevance_score: section.relevance_score,
+            explanation: section.snippet
+          }));
+          
+          setRelatedSections(relatedSectionData);
+          
+          // Store the detailed sections for insights and podcast generation
+          setRelatedSectionsDetailed(result.related_sections);
           
           const endTime = performance.now();
           const processingTime = endTime - startTime;
           
+          // Only show toast for significant results or slow processing
+          if (result.related_sections.length > 0 || processingTime > 1000) {
+            toast({
+              title: "Related sections found",
+              description: `Found ${result.related_sections.length} related sections (${processingTime.toFixed(0)}ms)`,
+              variant: "default"
+            });
+          }
+          
+        } catch (error) {
+          console.error('Error finding related sections:', error);
           toast({
-            title: "Highlight created",
-            description: `Added highlight on page ${page} (${processingTime.toFixed(0)}ms)`,
-            variant: "default"
+            title: "Search failed",
+            description: "Could not find related sections. Please try again.",
+            variant: "destructive"
           });
+        } finally {
+          setIsLoadingRelated(false);
         }
-      });
-    }
+      }
+      
+      if (text.length >= 10) {
+        // Create highlight asynchronously to avoid blocking UI
+        requestIdleCallback(async () => {
+          const highlight = await createEnhancedHighlight(text, page, undefined, true);
+          
+          if (highlight) {
+            setHighlights(prev => [...prev, highlight]);
+          }
+        });
+      }
+      
+      // Generate insights for substantial text selections (debounced)
+      if (text.length > 50) {
+        requestIdleCallback(() => {
+          generateInsightsForText(text);
+        });
+      }
+    }, 300); // 300ms debounce
     
-    // Generate insights for substantial text selections
-    if (text.length > 50) {
-      requestIdleCallback(() => {
-        generateInsightsForText(text);
+  }, [currentDocument, documents, persona, jobToBeDone, createEnhancedHighlight, generateInsightsForText, toast]);
+
+  // Handle navigation to a section in another document
+  const handleNavigateToSection = useCallback(async (docId: string, page: number) => {
+    try {
+      // Find the document to navigate to
+      const targetDocument = documents?.find(doc => doc.id === docId);
+      if (!targetDocument) {
+        toast({
+          title: "Document not found",
+          description: "The referenced document is no longer available.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Switch to the target document if different
+      if (currentDocument?.id !== docId) {
+        setCurrentDocument(targetDocument);
+        setHasError(false);
+        setErrorMessage('');
+      }
+
+      // Navigate to the specific page
+      setCurrentPage(page);
+
+      toast({
+        title: "Navigation successful",
+        description: `Jumped to page ${page} in ${targetDocument.name}`,
+        variant: "default"
+      });
+
+    } catch (error) {
+      console.error('Error navigating to section:', error);
+      toast({
+        title: "Navigation failed",
+        description: "Could not navigate to the selected section.",
+        variant: "destructive"
       });
     }
-  }, [createEnhancedHighlight, generateInsightsForText, toast]);
+  }, [documents, currentDocument, toast]);
+
+  // Generate insights from related sections
+  const handleGenerateInsightsFromRelated = useCallback(async () => {
+    if (!selectedText || relatedSectionsDetailed.length === 0) {
+      toast({
+        title: "No content available",
+        description: "Please select text and find related sections first.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const insights = await apiService.generateInsights(
+        selectedText,
+        persona || 'researcher',
+        jobToBeDone || 'analyze documents',
+        currentDocument?.name,
+        relatedSectionsDetailed
+      );
+
+      setCurrentInsights(insights);
+      setActiveRightPanel('insights');
+
+      toast({
+        title: "Insights generated",
+        description: `Generated ${insights.length} insights from related sections`,
+        variant: "default"
+      });
+
+    } catch (error) {
+      console.error('Error generating insights:', error);
+      toast({
+        title: "Insights generation failed",
+        description: "Could not generate insights. Please try again.",
+        variant: "destructive"
+      });
+    }
+  }, [selectedText, relatedSectionsDetailed, persona, jobToBeDone, currentDocument, toast]);
+
+  // Generate podcast from related sections
+  const handleGeneratePodcastFromRelated = useCallback(async () => {
+    if (!selectedText || relatedSectionsDetailed.length === 0) {
+      toast({
+        title: "No content available",
+        description: "Please select text and find related sections first.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // First generate insights to include in podcast
+      const insights = await apiService.generateInsights(
+        selectedText,
+        persona || 'researcher',
+        jobToBeDone || 'analyze documents',
+        currentDocument?.name,
+        relatedSectionsDetailed
+      );
+
+      // Switch to podcast panel to show the generation
+      setActiveRightPanel('podcast');
+
+      toast({
+        title: "Preparing podcast",
+        description: "Generating podcast with insights and related sections...",
+        variant: "default"
+      });
+
+    } catch (error) {
+      console.error('Error preparing podcast:', error);
+      toast({
+        title: "Podcast preparation failed",
+        description: "Could not prepare podcast content. Please try again.",
+        variant: "destructive"
+      });
+    }
+  }, [selectedText, relatedSectionsDetailed, persona, jobToBeDone, currentDocument, toast]);
 
   // Performance-optimized highlight click with smooth navigation
   const handleHighlightClick = useCallback((highlight: Highlight) => {
@@ -812,6 +997,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
             <div className="p-5 border-b border-border-subtle">
               <div className="grid grid-cols-2 gap-2">
                 {[
+                  { key: 'related', label: 'Related', icon: FileText },
                   { key: 'insights', label: 'Insights', icon: BookOpen },
                   { key: 'podcast', label: 'Podcast', icon: Settings },
                   { key: 'accessibility', label: 'Access', icon: Palette },
@@ -833,6 +1019,18 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
             </div>
 
             <div className="flex-1 overflow-hidden">
+              {activeRightPanel === 'related' && (
+                <RelatedSectionsPanel
+                  selectedText={selectedText}
+                  relatedSections={relatedSectionsDetailed}
+                  isLoading={isLoadingRelated}
+                  onNavigateToSection={handleNavigateToSection}
+                  onGenerateInsights={handleGenerateInsightsFromRelated}
+                  onGeneratePodcast={handleGeneratePodcastFromRelated}
+                  className="h-full"
+                />
+              )}
+              
               {activeRightPanel === 'insights' && (
                 <InsightsPanel 
                   documentId={currentDocument?.id}
@@ -848,8 +1046,8 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
                   documentId={currentDocument?.id}
                   currentPage={currentPage}
                   currentText={selectedText || currentSectionTitle}
-                  relatedSections={relatedSections.map(r => r.section_title)}
-                  insights={currentInsights.map(i => i.content)}
+                  relatedSections={relatedSectionsDetailed}
+                  insights={currentInsights}
                 />
               )}
               

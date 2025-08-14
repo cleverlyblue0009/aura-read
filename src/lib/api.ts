@@ -24,8 +24,22 @@ export interface RelatedSection {
 }
 
 export interface Insight {
-  type: 'takeaway' | 'fact' | 'contradiction' | 'connection' | 'info' | 'error';
+  type: 'takeaway' | 'fact' | 'contradiction' | 'connection' | 'application' | 'question' | 'info' | 'error';
   content: string;
+  confidence?: number;
+  sources?: string[];
+}
+
+export interface RelatedSectionSnippet {
+  doc_id: string;
+  doc_name: string;
+  heading: string;
+  snippet: string;
+  page: number;
+  start_page: number;
+  end_page: number;
+  relevance_score: number;
+  section_type: 'contradiction' | 'example' | 'supporting' | 'extension' | 'related';
 }
 
 export interface ReadingProgress {
@@ -129,11 +143,58 @@ class ApiService {
     return data.related_sections;
   }
 
+  async handleTextSelection(
+    selectedText: string,
+    documentId: string,
+    pageNumber: number,
+    documentIds: string[],
+    persona: string = 'researcher',
+    jobToBeDone: string = 'analyze documents'
+  ): Promise<{ selected_text: string; related_sections: RelatedSectionSnippet[] }> {
+    const response = await fetch(`${this.baseUrl}/text-selection`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        selected_text: selectedText,
+        document_id: documentId,
+        page_number: pageNumber,
+        document_ids: documentIds,
+        persona,
+        job_to_be_done: jobToBeDone,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to handle text selection: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async navigateToPage(docId: string, page: number): Promise<{
+    doc_id: string;
+    doc_name: string;
+    target_page: number;
+    pdf_url: string;
+    outline: OutlineItem[];
+  }> {
+    const response = await fetch(`${this.baseUrl}/navigate/${docId}/${page}`);
+
+    if (!response.ok) {
+      throw new Error(`Failed to navigate to page: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
   async generateInsights(
     text: string,
     persona: string,
     jobToBeDone: string,
-    documentContext?: string
+    documentContext?: string,
+    relatedSections?: RelatedSectionSnippet[]
   ): Promise<Insight[]> {
     const response = await fetch(`${this.baseUrl}/insights`, {
       method: 'POST',
@@ -145,6 +206,7 @@ class ApiService {
         persona,
         job_to_be_done: jobToBeDone,
         document_context: documentContext,
+        related_sections: relatedSections,
       }),
     });
 
@@ -158,9 +220,16 @@ class ApiService {
 
   async generatePodcast(
     text: string,
-    relatedSections: string[],
-    insights: string[]
-  ): Promise<{ script: string; audio_url: string }> {
+    relatedSections?: RelatedSectionSnippet[],
+    insights?: Insight[],
+    podcastStyle: string = 'single'
+  ): Promise<{ 
+    script: string; 
+    audio_url: string | null; 
+    style: string; 
+    duration_estimate?: string;
+    error?: string;
+  }> {
     const response = await fetch(`${this.baseUrl}/podcast`, {
       method: 'POST',
       headers: {
@@ -170,6 +239,7 @@ class ApiService {
         text,
         related_sections: relatedSections,
         insights,
+        podcast_style: podcastStyle,
       }),
     });
 
