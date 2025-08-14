@@ -9,8 +9,20 @@ load_dotenv()
 
 class TTSService:
     def __init__(self):
-        self.speech_key = os.getenv("AZURE_SPEECH_KEY")
+        # Support hackathon environment variables
+        self.speech_key = os.getenv("AZURE_TTS_KEY") or os.getenv("AZURE_SPEECH_KEY")
+        self.speech_endpoint = os.getenv("AZURE_TTS_ENDPOINT")
         self.speech_region = os.getenv("AZURE_SPEECH_REGION", "eastus")
+        self.tts_provider = os.getenv("TTS_PROVIDER", "azure").lower()
+        
+        # Extract region from endpoint if provided
+        if self.speech_endpoint and not self.speech_region:
+            # Extract region from endpoint URL like https://eastus.tts.speech.microsoft.com/
+            import re
+            region_match = re.search(r'https://([^.]+)\.tts\.speech\.microsoft\.com', self.speech_endpoint)
+            if region_match:
+                self.speech_region = region_match.group(1)
+        
         self.speech_config = None
         self.fallback_available = True
         self._initialize_service()
