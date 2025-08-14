@@ -1,4 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || (
+  import.meta.env.DEV ? 'http://localhost:8000' : '/api'
+);
 
 export interface DocumentInfo {
   id: string;
@@ -21,6 +23,12 @@ export interface RelatedSection {
   page_number: number;
   relevance_score: number;
   explanation: string;
+}
+
+export interface RelatedSectionWithSnippet extends RelatedSection {
+  document_id: string;
+  document_name: string;
+  snippet: string;
 }
 
 export interface Insight {
@@ -123,6 +131,37 @@ class ApiService {
 
     if (!response.ok) {
       throw new Error(`Failed to get related sections: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.related_sections;
+  }
+
+  async findRelatedByText(
+    selectedText: string,
+    currentDocumentId: string,
+    currentPage: number,
+    allDocumentIds: string[],
+    persona?: string,
+    jobToBeDone?: string
+  ): Promise<RelatedSectionWithSnippet[]> {
+    const response = await fetch(`${this.baseUrl}/find-related-by-text`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        selected_text: selectedText,
+        current_document_id: currentDocumentId,
+        current_page: currentPage,
+        all_document_ids: allDocumentIds,
+        persona: persona || 'researcher',
+        job_to_be_done: jobToBeDone || 'understand concepts',
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to find related sections: ${response.statusText}`);
     }
 
     const data = await response.json();
