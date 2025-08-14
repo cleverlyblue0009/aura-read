@@ -158,6 +158,43 @@ def detect_headings(text_blocks, title):
                 seen_headings_on_page[page].add(item_key)
     return outline
 
+def extract_sections_from_outline(text_blocks: List[Dict], outline: List[Dict]) -> List[Dict]:
+    """Extract sections with their content based on outline headings."""
+    sections = []
+    
+    if not outline or not text_blocks:
+        return sections
+    
+    # Sort outline by page number
+    sorted_outline = sorted(outline, key=lambda x: x['page'])
+    
+    for i, heading in enumerate(sorted_outline):
+        # Find the start and end of this section
+        start_page = heading['page']
+        end_page = sorted_outline[i + 1]['page'] if i + 1 < len(sorted_outline) else max(b['page'] for b in text_blocks)
+        
+        # Extract text blocks for this section
+        section_blocks = [
+            b for b in text_blocks 
+            if start_page <= b['page'] <= end_page
+        ]
+        
+        # Combine text from blocks
+        section_text = ' '.join([b['text'] for b in section_blocks])
+        
+        # Clean up the text
+        section_text = ' '.join(section_text.split())  # Remove extra whitespace
+        
+        sections.append({
+            'heading': heading['text'],
+            'level': heading['level'],
+            'page': heading['page'],
+            'text': section_text[:2000],  # Limit text length for performance
+            'word_count': len(section_text.split())
+        })
+    
+    return sections
+
 def analyze_pdf(pdf_path: str):
     """Analyze PDF and extract title and outline structure."""
     try:
@@ -182,11 +219,15 @@ def analyze_pdf(pdf_path: str):
                         "text": largest["text"].strip(),
                         "page": 0
                     }]
+        # Extract sections based on outline
+        sections = extract_sections_from_outline(text_blocks, outline)
+        
         return {
             "title": title,
             "outline": outline,
             "language": doc_language,
-            "text_blocks": text_blocks
+            "text_blocks": text_blocks,
+            "sections": sections
         }
     except Exception as e:
         print(f"Error processing {pdf_path}: {e}")

@@ -52,6 +52,14 @@ class RelatedSectionsRequest(BaseModel):
     persona: str
     job_to_be_done: str
 
+class TextSelectionRequest(BaseModel):
+    selected_text: str
+    current_document_id: str
+    current_page: int
+    all_document_ids: List[str]
+    persona: Optional[str] = "researcher"
+    job_to_be_done: Optional[str] = "understand concepts"
+
 class InsightsRequest(BaseModel):
     text: str
     persona: str
@@ -226,6 +234,119 @@ async def get_related_sections(request: RelatedSectionsRequest):
     )
     
     return {"related_sections": related}
+
+@app.post("/find-related-by-text")
+async def find_related_by_text(request: TextSelectionRequest):
+    """Find related sections based on selected text with snippets."""
+    try:
+        # Collect all sections from all documents
+        all_sections = []
+        doc_metadata = {}
+        
+        for doc_id in request.all_document_ids:
+            if doc_id not in documents_store:
+                continue
+            
+            doc_data = documents_store[doc_id]
+            doc_metadata[doc_id] = {
+                "name": doc_data["info"]["name"],
+                "title": doc_data["info"]["title"]
+            }
+            
+            # Get sections from document analysis
+            if "analysis" in doc_data:
+                sections = doc_data["analysis"].get("sections", [])
+                for section in sections:
+                    # Add document metadata to each section
+                    section["doc_id"] = doc_id
+                    section["doc_name"] = doc_data["info"]["name"]
+                    all_sections.append(section)
+        
+        # Find related sections using selected text as query
+        related_results = find_related_sections(
+            current_page=request.current_page,
+            current_section=request.selected_text,
+            persona=request.persona,
+            job=request.job_to_be_done,
+            all_sections=all_sections,
+            limit=5
+        )
+        
+        # Format results with snippets
+        formatted_results = []
+        for result in related_results:
+            # Extract snippet from the section text
+            text = result.get("text", "")
+            snippet = extract_snippet(text, request.selected_text, max_length=200)
+            
+            formatted_results.append({
+                "document_id": result.get("doc_id"),
+                "document_name": result.get("doc_name"),
+                "section_title": result.get("heading", ""),
+                "page_number": result.get("page", 1),
+                "snippet": snippet,
+                "relevance_score": result.get("score", 0),
+                "explanation": generate_relevance_explanation(
+                    request.selected_text,
+                    result.get("heading", ""),
+                    snippet
+                )
+            })
+        
+        return {
+            "related_sections": formatted_results,
+            "total_found": len(formatted_results)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to find related sections: {str(e)}")
+
+def extract_snippet(text: str, query: str, max_length: int = 200) -> str:
+    """Extract a relevant snippet from text based on query."""
+    if not text:
+        return ""
+    
+    # Clean and normalize text
+    text = " ".join(text.split())
+    query_words = query.lower().split()
+    
+    # Find the most relevant part of the text
+    sentences = text.split(". ")
+    best_score = 0
+    best_snippet = ""
+    
+    for i, sentence in enumerate(sentences):
+        # Calculate relevance score for this sentence
+        score = sum(1 for word in query_words if word in sentence.lower())
+        
+        if score > best_score:
+            best_score = score
+            # Get context around this sentence
+            start = max(0, i - 1)
+            end = min(len(sentences), i + 2)
+            snippet_sentences = sentences[start:end]
+            best_snippet = ". ".join(snippet_sentences)
+    
+    # Truncate if too long
+    if len(best_snippet) > max_length:
+        best_snippet = best_snippet[:max_length] + "..."
+    
+    return best_snippet or text[:max_length] + "..."
+
+def generate_relevance_explanation(query: str, section_title: str, snippet: str) -> str:
+    """Generate a simple explanation of why this section is relevant."""
+    query_words = set(query.lower().split())
+    title_words = set(section_title.lower().split())
+    snippet_words = set(snippet.lower().split())
+    
+    common_words = query_words & (title_words | snippet_words)
+    
+    if len(common_words) > 2:
+        return f"High relevance: shares concepts about {', '.join(list(common_words)[:3])}"
+    elif len(common_words) > 0:
+        return f"Related content discussing {', '.join(common_words)}"
+    else:
+        return "Semantically related content"
 
 @app.post("/insights")
 async def generate_insights(request: InsightsRequest):

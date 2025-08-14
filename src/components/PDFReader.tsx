@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { DocumentOutline } from './DocumentOutline';
 import { FloatingTools } from './FloatingTools';
 import { AdobePDFViewer, FallbackPDFViewer } from './AdobePDFViewer';
+import { RelatedSectionsPanel } from './RelatedSectionsPanel';
 
 // Hybrid PDF Viewer component that tries Adobe first, then falls back to iframe
 function HybridPDFViewer({ 
@@ -71,7 +72,8 @@ import {
   Upload, 
   BookOpen, 
   Settings,
-  Palette
+  Palette,
+  Search
 } from 'lucide-react';
 
 export interface PDFDocument {
@@ -121,7 +123,7 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
   const [currentPage, setCurrentPage] = useState(1);
   const [zoom, setZoom] = useState(1.0);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
-  const [activeRightPanel, setActiveRightPanel] = useState<'insights' | 'podcast' | 'accessibility' | 'simplifier' | 'export' | null>('insights');
+  const [activeRightPanel, setActiveRightPanel] = useState<'insights' | 'podcast' | 'accessibility' | 'simplifier' | 'export' | 'related' | null>('related');
   const [selectedText, setSelectedText] = useState<string>('');
   const [currentInsights, setCurrentInsights] = useState<Array<{ type: string; content: string }>>([]);
   const [relatedSections, setRelatedSections] = useState<RelatedSection[]>([]);
@@ -537,7 +539,13 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
     setSelectedText(text);
     setCurrentPage(page);
     
+    // Show related sections panel when text is selected
     if (text.length >= 10) {
+      if (!rightPanelOpen) {
+        setRightPanelOpen(true);
+      }
+      setActiveRightPanel('related');
+      
       // Create highlight asynchronously to avoid blocking UI
       requestIdleCallback(async () => {
         const highlight = await createEnhancedHighlight(text, page, undefined, true);
@@ -563,7 +571,23 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
         generateInsightsForText(text);
       });
     }
-  }, [createEnhancedHighlight, generateInsightsForText, toast]);
+  }, [createEnhancedHighlight, generateInsightsForText, toast, rightPanelOpen]);
+
+  // Handle navigation to a specific document and page
+  const handleNavigateToSection = useCallback((documentId: string, pageNumber: number) => {
+    // Find the document
+    const targetDoc = documents?.find(doc => doc.id === documentId);
+    if (targetDoc) {
+      // Switch to the target document if different
+      if (currentDocument?.id !== documentId) {
+        setCurrentDocument(targetDoc);
+      }
+      // Navigate to the page
+      setTimeout(() => {
+        setCurrentPage(pageNumber);
+      }, 100);
+    }
+  }, [documents, currentDocument]);
 
   // Performance-optimized highlight click with smooth navigation
   const handleHighlightClick = useCallback((highlight: Highlight) => {
@@ -810,8 +834,9 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
         {rightPanelOpen && (
           <aside className="w-96 bg-surface-elevated/50 border-l border-border-subtle flex flex-col animate-slide-in-right backdrop-blur-sm custom-scrollbar glass">
             <div className="p-5 border-b border-border-subtle">
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 {[
+                  { key: 'related', label: 'Related', icon: Search },
                   { key: 'insights', label: 'Insights', icon: BookOpen },
                   { key: 'podcast', label: 'Podcast', icon: Settings },
                   { key: 'accessibility', label: 'Access', icon: Palette },
@@ -833,6 +858,18 @@ export function PDFReader({ documents, persona, jobToBeDone, onBack }: PDFReader
             </div>
 
             <div className="flex-1 overflow-hidden">
+              {activeRightPanel === 'related' && (
+                <RelatedSectionsPanel
+                  selectedText={selectedText}
+                  currentDocumentId={currentDocument?.id || ''}
+                  currentPage={currentPage}
+                  allDocumentIds={documents?.map(d => d.id) || []}
+                  persona={persona}
+                  jobToBeDone={jobToBeDone}
+                  onNavigateToSection={handleNavigateToSection}
+                />
+              )}
+              
               {activeRightPanel === 'insights' && (
                 <InsightsPanel 
                   documentId={currentDocument?.id}

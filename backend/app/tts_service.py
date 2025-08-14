@@ -60,8 +60,8 @@ class TTSService:
             except Exception as e:
                 print(f"Fallback TTS failed: {e}")
         
-        print("All TTS methods failed")
-        return None
+        # Create a placeholder audio file when no TTS is available
+        return await self._create_placeholder_audio(text)
     
     async def _generate_azure_audio(self, text: str) -> Optional[str]:
         """Generate audio using Azure TTS service."""
@@ -110,6 +110,26 @@ class TTSService:
             return None
         except Exception as e:
             print(f"Azure TTS error: {e}")
+            return None
+    
+    async def _create_placeholder_audio(self, text: str) -> Optional[str]:
+        """Create a placeholder audio file when TTS is not available."""
+        try:
+            # Generate unique filename
+            audio_filename = f"placeholder_{uuid.uuid4()}.txt"
+            audio_path = f"audio_cache/{audio_filename}"
+            
+            # Ensure audio cache directory exists
+            os.makedirs("audio_cache", exist_ok=True)
+            
+            # Save text content as placeholder
+            with open(audio_path, 'w') as f:
+                f.write(f"Audio placeholder for: {text[:500]}")
+            
+            print(f"Placeholder audio file created: {audio_filename}")
+            return audio_filename
+        except Exception as e:
+            print(f"Failed to create placeholder audio: {e}")
             return None
     
     async def _generate_fallback_audio(self, text: str) -> Optional[str]:
